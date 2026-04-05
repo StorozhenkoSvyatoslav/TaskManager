@@ -5,6 +5,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import ru.storozhenko.taskmanager.database.DatabaseFactory
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -14,12 +15,11 @@ fun main() {
 }
 
 fun Application.module() {
+    DatabaseFactory.init()
+
     routing {
         get("/") {
-            call.respondText("Ktor: ${Greeting().greet()}", io.ktor.http.ContentType.Text.Plain)
+            call.respondText(text = "DB is connected!", io.ktor.http.ContentType.Text.Plain)
         }
-//        get("/") {
-//            call.respondText("Hello, World!", )
-//        }
     }
 }
