@@ -2,8 +2,10 @@ package ru.storozhenko.taskmanager.repository
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import ru.storozhenko.taskmanager.database.tables.Users
+import ru.storozhenko.taskmanager.models.LoginRequest
 import ru.storozhenko.taskmanager.models.RegisterRequest
 
 class UserRepository {
@@ -22,6 +24,19 @@ class UserRepository {
             } catch (e: Exception) {
                 false
             }
+        }
+    }
+
+    fun verifyUser(request: LoginRequest): String? {
+        return transaction {
+            val user = Users.select { Users.email eq request.email }.singleOrNull()
+
+            if (user != null) {
+                val storedHash = user[Users.passwordHash]
+                val isPasswordCorrect = BCrypt.verifyer().verify(request.password.toCharArray(), storedHash).verified
+                if (isPasswordCorrect) return@transaction user[Users.username]
+            }
+            null
         }
     }
 }
