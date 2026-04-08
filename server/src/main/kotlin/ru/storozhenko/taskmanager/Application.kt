@@ -5,8 +5,10 @@ import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
+import io.ktor.server.auth.principal
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
@@ -15,6 +17,7 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import ru.storozhenko.taskmanager.database.DatabaseFactory
 import ru.storozhenko.taskmanager.routing.authRouting
+import ru.storozhenko.taskmanager.routing.taskRouting
 import javax.swing.text.AbstractDocument
 
 //надо будет вынести в файлы конфигурации
@@ -61,6 +64,13 @@ fun Application.module() {
         get("/") {
             call.respondText(text = "DB is connected!", io.ktor.http.ContentType.Text.Plain)
         }
+
+        // Маршруты для регистрации и авторизации (доступны всем)
         authRouting()
+
+        // Применяем JWT авторизацию ко всем маршрутам внутри блока
+        authenticate("auth-jwt") {
+            taskRouting()
+        }
     }
 }

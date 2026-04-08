@@ -36,13 +36,14 @@ fun Route.authRouting() {
             )
 
             // Проверяем пользователя
-            val username = userRepository.verifyUser(request)
+            val userData = userRepository.verifyUser(request)
 
-            if (username != null) {
+            if (userData != null) {
                 val token = JWT.create()
                     .withAudience(JWT_AUDIENCE)
                     .withIssuer(JWT_ISSUER)
-                    .withClaim("username", username)
+                    .withClaim("id", userData.first)          // Добавляем ID в токен
+                    .withClaim("username", userData.second)   // Добавляем username
                     .withExpiresAt(Date(System.currentTimeMillis() + 60000 * 60 * 24)) // Токен живет 24 часа
                     .sign(Algorithm.HMAC256(JWT_SECRET)) // Подписываем токен
 

@@ -27,14 +27,14 @@ class UserRepository {
         }
     }
 
-    fun verifyUser(request: LoginRequest): String? {
+    fun verifyUser(request: LoginRequest): Pair<Int, String>? {
         return transaction {
             val user = Users.select { Users.email eq request.email }.singleOrNull()
 
             if (user != null) {
                 val storedHash = user[Users.passwordHash]
                 val isPasswordCorrect = BCrypt.verifyer().verify(request.password.toCharArray(), storedHash).verified
-                if (isPasswordCorrect) return@transaction user[Users.username]
+                if (isPasswordCorrect) return@transaction Pair(user[Users.id], user[Users.username])
             }
             null
         }

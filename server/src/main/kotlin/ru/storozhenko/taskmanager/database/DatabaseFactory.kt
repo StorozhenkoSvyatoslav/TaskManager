@@ -3,6 +3,7 @@ package ru.storozhenko.taskmanager.database
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
+import ru.storozhenko.taskmanager.database.tables.Tasks
 import ru.storozhenko.taskmanager.database.tables.Users
 
 object DatabaseFactory {
@@ -19,7 +20,7 @@ object DatabaseFactory {
             password = dbPassword
         )
         transaction(database) {
-            SchemaUtils.create(Users)
+            SchemaUtils.create(Users, Tasks)
         }
     }
 }
