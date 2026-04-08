@@ -14,6 +14,8 @@ object Tasks : Table("tasks") {
     // Связываем задачу с автором (внешний ключ)
     val authorId = integer("author_id").references(Users.id)
 
+    val workspaceId = integer("workspace_id").references(Workspaces.id)
+
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
 

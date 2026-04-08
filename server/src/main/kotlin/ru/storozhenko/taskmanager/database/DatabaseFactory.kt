@@ -5,6 +5,7 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import ru.storozhenko.taskmanager.database.tables.Tasks
 import ru.storozhenko.taskmanager.database.tables.Users
+import ru.storozhenko.taskmanager.database.tables.Workspaces
 
 object DatabaseFactory {
     fun init() {
@@ -20,7 +21,7 @@ object DatabaseFactory {
             password = dbPassword
         )
         transaction(database) {
-            SchemaUtils.create(Users, Tasks)
+            SchemaUtils.create(Users, Tasks, Workspaces)
         }
     }
 }

@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 import ru.storozhenko.taskmanager.database.DatabaseFactory
 import ru.storozhenko.taskmanager.routing.authRouting
 import ru.storozhenko.taskmanager.routing.taskRouting
+import ru.storozhenko.taskmanager.routing.workspaceRouting
 import javax.swing.text.AbstractDocument
 
 //надо будет вынести в файлы конфигурации
@@ -71,6 +72,7 @@ fun Application.module() {
         // Применяем JWT авторизацию ко всем маршрутам внутри блока
         authenticate("auth-jwt") {
             taskRouting()
+            workspaceRouting()
         }
     }
 }

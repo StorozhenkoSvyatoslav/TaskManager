@@ -13,6 +13,9 @@ import ru.storozhenko.taskmanager.database.tables.Tasks
 import ru.storozhenko.taskmanager.models.CreateTaskRequest
 import ru.storozhenko.taskmanager.models.TaskModel
 import java.time.ZoneOffset
+import kotlin.text.get
+import kotlin.text.insert
+import kotlin.text.set
 
 fun Route.taskRouting() {
     route("/tasks") {
@@ -26,6 +29,7 @@ fun Route.taskRouting() {
             }
 
             val userTasks = transaction {
+                // Временно получаем просто все задачи пользователя ебаное говно надо поменять нахуй
                 Tasks.selectAll().where { Tasks.authorId eq userId }.map {
                     TaskModel(
                         id = it[Tasks.id],
@@ -34,6 +38,7 @@ fun Route.taskRouting() {
                         status = it[Tasks.status],
                         priority = it[Tasks.priority],
                         authorId = it[Tasks.authorId],
+                        workspaceId = it[Tasks.workspaceId], // <-- Добавили
                         createdAt = it[Tasks.createdAt].toEpochSecond(ZoneOffset.UTC),
                         updatedAt = it[Tasks.updatedAt].toEpochSecond(ZoneOffset.UTC)
                     )
@@ -64,6 +69,7 @@ fun Route.taskRouting() {
                     it[status] = request.status
                     it[priority] = request.priority
                     it[authorId] = userId
+                    it[workspaceId] = request.workspaceId // <-- Сохраняем ID пространства
                 } get Tasks.id
             }
 

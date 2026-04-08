@@ -10,8 +10,9 @@ data class TaskModel(
     val status: String,
     val priority: String,     // Например: "LOW", "MEDIUM", "HIGH"
     val authorId: Int,
+    val workspaceId: Int,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
 )
 
 @Serializable
@@ -19,5 +20,6 @@ data class CreateTaskRequest(
     val title: String,
     val description: String?,
     val status: String = "TODO",
-    val priority: String = "MEDIUM"
+    val priority: String = "MEDIUM",
+    val workspaceId: Int,
 )
