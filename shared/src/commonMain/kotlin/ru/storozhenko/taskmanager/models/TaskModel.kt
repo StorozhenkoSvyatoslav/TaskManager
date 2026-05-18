@@ -8,7 +8,7 @@ data class TaskModel(
     val title: String,
     val description: String?,
     val status: String,
-    val priority: String,     // Например: "LOW", "MEDIUM", "HIGH"
+    val priority: String,
     val authorId: Int,
     val workspaceId: Int,
     val createdAt: Long,
@@ -23,3 +23,4 @@ data class CreateTaskRequest(
     val priority: String = "MEDIUM",
     val workspaceId: Int,
 )
+
