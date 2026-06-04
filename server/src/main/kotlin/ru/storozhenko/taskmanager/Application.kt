@@ -8,20 +8,18 @@ import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
-import io.ktor.server.auth.principal
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.Serializable
 import ru.storozhenko.taskmanager.database.DatabaseFactory
 import ru.storozhenko.taskmanager.routing.authRouting
 import ru.storozhenko.taskmanager.routing.taskRouting
 import ru.storozhenko.taskmanager.routing.workspaceRouting
-import javax.swing.text.AbstractDocument
 
 //надо будет вынести в файлы конфигурации
+const val SERVER_PORT = 8081
 const val JWT_SECRET = "my-secret-key-for-task-manager"
 const val JWT_ISSUER = "http://localhost:8081"
 const val JWT_AUDIENCE = "task-manager-client"

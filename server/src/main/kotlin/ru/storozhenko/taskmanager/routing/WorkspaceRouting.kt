@@ -1,7 +1,6 @@
 package ru.storozhenko.taskmanager.routing
 
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
@@ -9,8 +8,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
 import ru.storozhenko.taskmanager.database.tables.Workspaces
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
+import ru.storozhenko.taskmanager.models.JoinWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 import java.time.ZoneOffset
 
@@ -52,16 +53,140 @@ fun Route.workspaceRouting() {
             }
 
             val newWorkspaceId = transaction {
-                Workspaces.insert {
+                val id = Workspaces.insert {
                     it[name] = request.name
                     it[description] = request.description
                     it[visibility] = request.visibility
                     it[inviteCode] = request.inviteCode
                     it[ownerId] = userId
                 } get Workspaces.id
+
+                // владелец автоматически становится OWNER-участником
+                WorkspaceMembers.insertIgnore {
+                    it[workspaceId] = id
+                    it[WorkspaceMembers.userId] = userId
+                    it[role] = "OWNER"
+                }
+
+                id
             }
 
             call.respond(HttpStatusCode.Created, "Workspace created with ID: $newWorkspaceId")
+        }
+
+        // Получить inviteCode (только владелец/OWNER)
+        get("/{id}/inviteCode") {
+            val workspaceId = call.parameters["id"]?.toIntOrNull()
+            if (workspaceId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid workspace id")
+                return@get
+            }
+
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()
+            if (userId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@get
+            }
+
+            val result = transaction {
+                val workspaceRow = Workspaces
+                    .select(Workspaces.ownerId, Workspaces.inviteCode)
+                    .where { Workspaces.id eq workspaceId }
+                    .limit(1)
+                    .firstOrNull()
+                    ?: return@transaction Pair(null, null)
+
+                val ownerId = workspaceRow[Workspaces.ownerId]
+                val inviteCode = workspaceRow[Workspaces.inviteCode]
+
+                // 1) прямой владелец по workspaces.owner_id
+                if (ownerId == userId) return@transaction Pair(true, inviteCode)
+
+                // 2) или роль OWNER в членстве (на случай, если данные owner_id/членства разъехались)
+                val isOwnerMember = WorkspaceMembers
+                    .selectAll()
+                    .where {
+                        (WorkspaceMembers.workspaceId eq workspaceId) and
+                            (WorkspaceMembers.userId eq userId) and
+                            (WorkspaceMembers.role eq "OWNER")
+                    }
+                    .limit(1)
+                    .any()
+
+                Pair(isOwnerMember, inviteCode)
+            }
+
+            val hasAccess = result.first
+            val inviteCode = result.second
+
+            if (hasAccess == null) {
+                call.respond(HttpStatusCode.NotFound, "Workspace not found")
+                return@get
+            }
+
+            if (hasAccess != true) {
+                call.respond(HttpStatusCode.Forbidden, "No access")
+                return@get
+            }
+
+            call.respond(HttpStatusCode.OK, mapOf("inviteCode" to inviteCode))
+        }
+
+        // Вступить в приватное пространство по inviteCode
+        post("/join") {
+            val request = call.receiveNullable<JoinWorkspaceRequest>()
+            if (request == null || request.inviteCode.isBlank()) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid request body")
+                return@post
+            }
+
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()
+            if (userId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@post
+            }
+
+            val workspace = transaction {
+                Workspaces.selectAll()
+                    .where { Workspaces.inviteCode eq request.inviteCode }
+                    .limit(1)
+                    .firstOrNull()
+            }
+
+            if (workspace == null) {
+                call.respond(HttpStatusCode.NotFound, "Workspace not found")
+                return@post
+            }
+
+            if (workspace[Workspaces.visibility] != "PRIVATE") {
+                call.respond(HttpStatusCode.BadRequest, "Workspace is not private")
+                return@post
+            }
+
+            val workspaceId = workspace[Workspaces.id]
+
+            transaction {
+                // добавляем членство (идемпотентно)
+                WorkspaceMembers.insertIgnore {
+                    it[WorkspaceMembers.workspaceId] = workspaceId
+                    it[WorkspaceMembers.userId] = userId
+                    it[role] = "MEMBER"
+                }
+            }
+
+            val model = WorkspaceModel(
+                id = workspaceId,
+                name = workspace[Workspaces.name],
+                description = workspace[Workspaces.description],
+                visibility = workspace[Workspaces.visibility],
+                inviteCode = null,
+                ownerId = workspace[Workspaces.ownerId],
+                createdAt = workspace[Workspaces.createdAt].toEpochSecond(ZoneOffset.UTC)
+            )
+
+            call.respond(HttpStatusCode.OK, model)
         }
     }
 }
