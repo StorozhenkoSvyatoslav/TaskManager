@@ -10,7 +10,10 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import ru.storozhenko.taskmanager.database.DatabaseFactory
@@ -36,6 +39,27 @@ fun main() {
 
 fun Application.module() {
     DatabaseFactory.init()
+
+    install(CORS) {
+        allowHost("localhost:8080")
+        allowHost("localhost:5173")
+        allowHost("localhost:3000")
+        allowHost("127.0.0.1:8080")
+        allowHost("127.0.0.1:5173")
+        allowHost("127.0.0.1:3000")
+        allowHeader(HttpHeaders.ContentType)
+        allowHeader(HttpHeaders.Authorization)
+        allowHeader(HttpHeaders.Accept)
+        allowHeader(HttpHeaders.Origin)
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Get)
+        allowMethod(HttpMethod.Post)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Delete)
+        allowMethod(HttpMethod.Patch)
+        allowCredentials = true
+        maxAgeInSeconds = 3600
+    }
 
     install(ContentNegotiation) {
         json()

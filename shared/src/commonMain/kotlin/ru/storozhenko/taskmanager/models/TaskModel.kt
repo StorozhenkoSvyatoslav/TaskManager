@@ -24,3 +24,17 @@ data class CreateTaskRequest(
     val workspaceId: Int,
 )
 
+@Serializable
+data class TaskDetailModel(
+    val id: Int,
+    val title: String,
+    val description: String?,
+    val status: String,
+    val priority: String,
+    val authorId: Int,
+    val workspaceId: Int,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val attachments: List<AttachmentModel>,
+)
+
