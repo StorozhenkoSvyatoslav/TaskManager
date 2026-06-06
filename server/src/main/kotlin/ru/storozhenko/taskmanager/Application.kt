@@ -14,7 +14,10 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import ru.storozhenko.taskmanager.database.DatabaseFactory
+import ru.storozhenko.taskmanager.routing.attachmentRouting
 import ru.storozhenko.taskmanager.routing.authRouting
+import ru.storozhenko.taskmanager.routing.commentRouting
+import ru.storozhenko.taskmanager.routing.statsRouting
 import ru.storozhenko.taskmanager.routing.taskRouting
 import ru.storozhenko.taskmanager.routing.workspaceRouting
 
@@ -71,6 +74,9 @@ fun Application.module() {
         authenticate("auth-jwt") {
             taskRouting()
             workspaceRouting()
+            commentRouting()
+            attachmentRouting()
+            statsRouting()
         }
     }
 }

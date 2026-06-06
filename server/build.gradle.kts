@@ -31,4 +31,6 @@ dependencies {
     implementation(libs.bcrypt)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
+    testImplementation("org.junit.platform:junit-platform-suite:1.10.0")
+    testImplementation("org.junit.platform:junit-platform-suite-api:1.10.0")
 }
