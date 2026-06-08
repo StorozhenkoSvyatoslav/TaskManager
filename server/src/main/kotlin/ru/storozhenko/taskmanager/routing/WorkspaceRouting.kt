@@ -36,6 +36,34 @@ fun Route.workspaceRouting() {
             call.respond(HttpStatusCode.OK, publicWorkspaces)
         }
 
+        // Получить список пространств текущего пользователя
+        get {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()
+            if (userId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@get
+            }
+
+            val workspaces = transaction {
+                (Workspaces innerJoin WorkspaceMembers)
+                    .selectAll()
+                    .where { WorkspaceMembers.userId eq userId }
+                    .map {
+                        WorkspaceModel(
+                            id = it[Workspaces.id],
+                            name = it[Workspaces.name],
+                            description = it[Workspaces.description],
+                            visibility = it[Workspaces.visibility],
+                            inviteCode = if (it[Workspaces.ownerId] == userId) it[Workspaces.inviteCode] else null,
+                            ownerId = it[Workspaces.ownerId],
+                            createdAt = it[Workspaces.createdAt].toEpochSecond(ZoneOffset.UTC)
+                        )
+                    }
+            }
+            call.respond(HttpStatusCode.OK, workspaces)
+        }
+
         // Создать новое пространство
         post {
             val request = call.receiveNullable<CreateWorkspaceRequest>()
@@ -52,7 +80,7 @@ fun Route.workspaceRouting() {
                 return@post
             }
 
-            val newWorkspaceId = transaction {
+            val created = transaction {
                 val id = Workspaces.insert {
                     it[name] = request.name
                     it[description] = request.description
@@ -61,17 +89,27 @@ fun Route.workspaceRouting() {
                     it[ownerId] = userId
                 } get Workspaces.id
 
-                // владелец автоматически становится OWNER-участником
                 WorkspaceMembers.insertIgnore {
                     it[workspaceId] = id
                     it[WorkspaceMembers.userId] = userId
                     it[role] = "OWNER"
                 }
 
-                id
+                Workspaces.selectAll().where { Workspaces.id eq id }.single()
             }
 
-            call.respond(HttpStatusCode.Created, "Workspace created with ID: $newWorkspaceId")
+            call.respond(
+                HttpStatusCode.Created,
+                WorkspaceModel(
+                    id = created[Workspaces.id],
+                    name = created[Workspaces.name],
+                    description = created[Workspaces.description],
+                    visibility = created[Workspaces.visibility],
+                    inviteCode = created[Workspaces.inviteCode],
+                    ownerId = created[Workspaces.ownerId],
+                    createdAt = created[Workspaces.createdAt].toEpochSecond(ZoneOffset.UTC)
+                )
+            )
         }
 
         // Получить inviteCode (только владелец/OWNER)

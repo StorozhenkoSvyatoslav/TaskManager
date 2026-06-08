@@ -20,3 +20,8 @@ data class CreateWorkspaceRequest(
     val visibility: String = "PUBLIC",
     val inviteCode: String? = null // если visibility == "PRIVATE"
 )
+
+@Serializable
+data class JoinWorkspaceRequest(
+    val inviteCode: String
+)

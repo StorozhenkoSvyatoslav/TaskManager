@@ -1,6 +1,5 @@
 package ru.storozhenko.taskmanager
 
-import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -8,12 +7,10 @@ import ru.storozhenko.taskmanager.models.AuthResponse
 import ru.storozhenko.taskmanager.models.LoginRequest
 import ru.storozhenko.taskmanager.models.RegisterRequest
 
-expect fun createHttpClient(): HttpClient
-
-private const val API_BASE = "http://localhost:8081"
+expect fun createHttpClient(): io.ktor.client.HttpClient
 
 class AuthService {
-    private val client = createHttpClient()
+    private val client = ApiClient.http
 
     suspend fun login(email: String, password: String): Result<String> = runCatching {
         val response = client.post("$API_BASE/auth/login") {
