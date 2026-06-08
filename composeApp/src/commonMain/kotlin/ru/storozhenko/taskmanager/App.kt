@@ -32,7 +32,7 @@ fun App() {
             }
 
             when (val s = screen) {
-                is Screen.WorkspaceList -> WorkspaceListPlaceholder(
+                is Screen.WorkspaceList -> WorkspaceListScreen(
                     token = token!!,
                     onNavigateToWorkspace = { id -> screen = Screen.WorkspaceDetail(id) },
                     onLogout = onLogout
@@ -43,18 +43,6 @@ fun App() {
                 )
             }
         }
-    }
-}
-
-// Заглушки — будут заменены реальными экранами после согласования дизайна
-@Composable
-private fun WorkspaceListPlaceholder(
-    token: String,
-    onNavigateToWorkspace: (Int) -> Unit,
-    onLogout: () -> Unit
-) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("WorkspaceListScreen — в разработке")
     }
 }
 
