@@ -178,6 +178,14 @@ fun WorkspaceDetailScreen(
                 filteredTasks = filteredTasks,
                 stats         = stats,
                 members       = members,
+                isOwner       = isOwner,
+                currentUserId = currentUserId,
+                onRemoveMember = { userId ->
+                    scope.launch {
+                        workspaceRepo.removeMember(workspace.id, userId)
+                        refreshKey++
+                    }
+                },
                 modifier      = Modifier.width(340.dp).fillMaxHeight()
             )
         }
@@ -651,6 +659,9 @@ private fun WdSidePanel(
     filteredTasks: List<TaskModel>,
     stats: WorkspaceStats?,
     members: List<WorkspaceMemberModel>,
+    isOwner: Boolean = false,
+    currentUserId: Int = 0,
+    onRemoveMember: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val doneCount   = filteredTasks.count { it.status.uppercase() == "DONE" }
@@ -732,10 +743,21 @@ private fun WdSidePanel(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(m.username, fontSize = 14.sp, color = WdTextPri)
                         if (m.role == "OWNER") {
                             Text("Owner", fontSize = 11.sp, color = WdBlue)
+                        }
+                    }
+                    if (isOwner && m.userId != currentUserId) {
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .background(WdRed.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
+                                .clickable { onRemoveMember(m.userId) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("✕", fontSize = 12.sp, color = WdRed, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

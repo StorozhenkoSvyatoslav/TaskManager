@@ -7,6 +7,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import ru.storozhenko.taskmanager.database.tables.Users
 import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
@@ -211,6 +212,50 @@ fun Route.workspaceRouting() {
             }
 
             call.respond(HttpStatusCode.OK, mapOf("inviteCode" to inviteCode))
+        }
+
+        // Удалить участника из пространства (только OWNER; нельзя удалить самого себя)
+        delete("/{id}/members/{userId}") {
+            val workspaceId = call.parameters["id"]?.toIntOrNull()
+            val targetUserId = call.parameters["userId"]?.toIntOrNull()
+            if (workspaceId == null || targetUserId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid parameters")
+                return@delete
+            }
+            val principal = call.principal<JWTPrincipal>()
+            val requesterId = principal?.payload?.getClaim("id")?.asInt()
+            if (requesterId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@delete
+            }
+            val isOwner = transaction {
+                WorkspaceMembers.selectAll()
+                    .where {
+                        (WorkspaceMembers.workspaceId eq workspaceId) and
+                        (WorkspaceMembers.userId eq requesterId) and
+                        (WorkspaceMembers.role eq "OWNER")
+                    }
+                    .any()
+            }
+            if (!isOwner) {
+                call.respond(HttpStatusCode.Forbidden, "Only workspace owner can remove members")
+                return@delete
+            }
+            if (requesterId == targetUserId) {
+                call.respond(HttpStatusCode.BadRequest, "Owner cannot remove themselves")
+                return@delete
+            }
+            val deleted = transaction {
+                WorkspaceMembers.deleteWhere {
+                    (WorkspaceMembers.workspaceId eq workspaceId) and
+                    (WorkspaceMembers.userId eq targetUserId)
+                }
+            }
+            if (deleted == 0) {
+                call.respond(HttpStatusCode.NotFound, "Member not found")
+            } else {
+                call.respond(HttpStatusCode.OK, "Member removed")
+            }
         }
 
         // Вступить в приватное пространство по inviteCode

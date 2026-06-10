@@ -40,4 +40,9 @@ class WorkspaceRepository(private val token: String) {
     suspend fun getMembers(workspaceId: Int): Result<List<WorkspaceMemberModel>> = runCatching {
         client.get("$API_BASE/workspaces/$workspaceId/members") { auth() }.body()
     }
+
+    suspend fun removeMember(workspaceId: Int, userId: Int): Result<Unit> = runCatching {
+        client.delete("$API_BASE/workspaces/$workspaceId/members/$userId") { auth() }
+        Unit
+    }
 }
