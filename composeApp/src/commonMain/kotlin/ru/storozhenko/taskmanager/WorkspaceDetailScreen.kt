@@ -81,7 +81,8 @@ private fun taskInitials(task: TaskModel): String {
 fun WorkspaceDetailScreen(
     workspace: WorkspaceModel,
     token: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToTask: (TaskModel) -> Unit = {}
 ) {
     val repo = remember(token) { TaskRepository(token) }
 
@@ -127,9 +128,10 @@ fun WorkspaceDetailScreen(
                     onSortChange    = { sortBy = it }
                 )
                 WdKanbanBoard(
-                    tasks     = filteredTasks,
-                    isLoading = isLoading,
-                    modifier  = Modifier.weight(1f).fillMaxWidth()
+                    tasks        = filteredTasks,
+                    isLoading    = isLoading,
+                    onTaskClick  = onNavigateToTask,
+                    modifier     = Modifier.weight(1f).fillMaxWidth()
                 )
             }
             // ── Divider ───────────────────────────────────────────────────────
@@ -394,6 +396,7 @@ private fun WdToolbar(
 private fun WdKanbanBoard(
     tasks: List<TaskModel>,
     isLoading: Boolean,
+    onTaskClick: (TaskModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (isLoading) {
@@ -412,9 +415,10 @@ private fun WdKanbanBoard(
         ) {
             WD_COLUMNS.forEach { col ->
                 WdKanbanColumn(
-                    col      = col,
-                    tasks    = tasks.filter { it.status.uppercase() == col.status },
-                    modifier = Modifier.weight(1f)
+                    col         = col,
+                    tasks       = tasks.filter { it.status.uppercase() == col.status },
+                    onTaskClick = onTaskClick,
+                    modifier    = Modifier.weight(1f)
                 )
             }
         }
@@ -426,6 +430,7 @@ private fun WdKanbanBoard(
 private fun WdKanbanColumn(
     col: WdCol,
     tasks: List<TaskModel>,
+    onTaskClick: (TaskModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -459,14 +464,14 @@ private fun WdKanbanColumn(
         }
         // Cards
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            tasks.forEach { task -> WdTaskCard(task) }
+            tasks.forEach { task -> WdTaskCard(task, onTaskClick) }
         }
     }
 }
 
 // ── Task Card ─────────────────────────────────────────────────────────────────
 @Composable
-private fun WdTaskCard(task: TaskModel) {
+private fun WdTaskCard(task: TaskModel, onTaskClick: (TaskModel) -> Unit = {}) {
     val hoverSource = remember { MutableInteractionSource() }
     val isHovered   by hoverSource.collectIsHoveredAsState()
     var showMenu    by remember { mutableStateOf(false) }
@@ -475,7 +480,7 @@ private fun WdTaskCard(task: TaskModel) {
         modifier = Modifier
             .fillMaxWidth()
             .hoverable(hoverSource)
-            .clickable {}
+            .clickable { onTaskClick(task) }
             .then(if (isHovered) Modifier.offset(y = (-2).dp) else Modifier),
         shape     = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(
@@ -508,7 +513,7 @@ private fun WdTaskCard(task: TaskModel) {
                         Text("⋮", fontSize = 14.sp, color = WdTextMuted)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(text = { Text("View details") }, onClick = { showMenu = false })
+                        DropdownMenuItem(text = { Text("View details") }, onClick = { showMenu = false; onTaskClick(task) })
                         DropdownMenuItem(text = { Text("Edit") },         onClick = { showMenu = false })
                         DropdownMenuItem(text = { Text("Delete") },       onClick = { showMenu = false })
                     }

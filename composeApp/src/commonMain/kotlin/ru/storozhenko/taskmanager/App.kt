@@ -2,11 +2,13 @@ package ru.storozhenko.taskmanager
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import ru.storozhenko.taskmanager.models.TaskModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 
 sealed class Screen {
     object WorkspaceList : Screen()
     data class WorkspaceDetail(val workspace: WorkspaceModel) : Screen()
+    data class TaskDetail(val task: TaskModel, val workspace: WorkspaceModel) : Screen()
 }
 
 @Composable
@@ -34,9 +36,16 @@ fun App() {
                     onLogout             = onLogout
                 )
                 is Screen.WorkspaceDetail -> WorkspaceDetailScreen(
+                    workspace        = s.workspace,
+                    token            = token!!,
+                    onBack           = { screen = Screen.WorkspaceList },
+                    onNavigateToTask = { task -> screen = Screen.TaskDetail(task, s.workspace) }
+                )
+                is Screen.TaskDetail -> TaskDetailScreen(
+                    task      = s.task,
                     workspace = s.workspace,
                     token     = token!!,
-                    onBack    = { screen = Screen.WorkspaceList }
+                    onBack    = { screen = Screen.WorkspaceDetail(s.workspace) }
                 )
             }
         }
