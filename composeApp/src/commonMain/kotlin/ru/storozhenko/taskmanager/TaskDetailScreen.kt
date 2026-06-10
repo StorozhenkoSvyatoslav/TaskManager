@@ -181,10 +181,11 @@ fun TaskDetailScreen(
         )
     } ?: task
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(TdPageBg),
         contentAlignment = Alignment.TopCenter
     ) {
+        val isNarrow = maxWidth < 700.dp
         Column(modifier = Modifier.widthIn(max = 1920.dp).fillMaxSize()) {
             TdHeaderBar(task = displayTask, onBack = onBack)
             if (isLoading) {
@@ -194,6 +195,28 @@ fun TaskDetailScreen(
                 ) {
                     CircularProgressIndicator(color = TdBlue)
                 }
+            } else if (isNarrow) {
+                // Mobile: stack vertically — main content on top, comments fixed at bottom
+                TdMainPanel(
+                    task          = displayTask,
+                    detail        = detail,
+                    workspace     = workspace,
+                    repo          = repo,
+                    isUploading   = isUploading,
+                    onUploadClick = onUploadAttachment,
+                    modifier      = Modifier.weight(1f).fillMaxWidth()
+                )
+                HorizontalDivider(color = TdBorder)
+                TdCommentPanel(
+                    comments        = comments,
+                    deletingIds     = deletingIds,
+                    commentText     = commentText,
+                    onTextChange    = { commentText = it },
+                    isSending       = isSending,
+                    onSend          = onSend,
+                    onDeleteComment = onDeleteComment,
+                    modifier        = Modifier.height(320.dp).fillMaxWidth()
+                )
             } else {
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     TdMainPanel(

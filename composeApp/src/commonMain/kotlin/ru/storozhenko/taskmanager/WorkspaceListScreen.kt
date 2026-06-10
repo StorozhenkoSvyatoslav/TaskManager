@@ -104,40 +104,75 @@ fun WorkspaceListScreen(
                         }
                     }
                     HorizontalDivider(color = WlBorder)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 40.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.width(280.dp),
-                            placeholder = { Text("Search workspaces...") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        Spacer(Modifier.weight(1f))
-                        if (selectedTab == 1) {
-                            OutlinedButton(
-                                onClick = { showJoinDialog = true },
-                                modifier = Modifier,
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = WlBlue),
-                                shape = RoundedCornerShape(8.dp)
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val isNarrow = maxWidth < 600.dp
+                        if (isNarrow) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
-                                Text("Join Private")
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("Search workspaces...") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                                ) {
+                                    if (selectedTab == 1) {
+                                        OutlinedButton(
+                                            onClick = { showJoinDialog = true },
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = WlBlue),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) { Text("Join Private") }
+                                    }
+                                    Button(
+                                        onClick = { showCreateDialog = true },
+                                        colors = ButtonDefaults.buttonColors(containerColor = WlBlue),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                                    ) { Text("+ Create") }
+                                }
                             }
-                        }
-                        Button(
-                            onClick = { showCreateDialog = true },
-                            modifier = Modifier,
-                            colors = ButtonDefaults.buttonColors(containerColor = WlBlue),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                        ) {
-                            Text("+ Create Workspace")
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 40.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    modifier = Modifier.width(280.dp),
+                                    placeholder = { Text("Search workspaces...") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                Spacer(Modifier.weight(1f))
+                                if (selectedTab == 1) {
+                                    OutlinedButton(
+                                        onClick = { showJoinDialog = true },
+                                        modifier = Modifier,
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = WlBlue),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) { Text("Join Private") }
+                                }
+                                Button(
+                                    onClick = { showCreateDialog = true },
+                                    modifier = Modifier,
+                                    colors = ButtonDefaults.buttonColors(containerColor = WlBlue),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                                ) { Text("+ Create Workspace") }
+                            }
                         }
                     }
                 }

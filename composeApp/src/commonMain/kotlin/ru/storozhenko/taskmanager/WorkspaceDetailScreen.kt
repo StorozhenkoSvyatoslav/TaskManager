@@ -134,10 +134,11 @@ fun WorkspaceDetailScreen(
             }
         }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(WdPageBg),
         contentAlignment = Alignment.TopCenter
     ) {
+        val showSidePanel = maxWidth >= 700.dp
         Row(modifier = Modifier.widthIn(max = 1920.dp).fillMaxSize()) {
             // ── Main content ──────────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -176,24 +177,26 @@ fun WorkspaceDetailScreen(
                     modifier     = Modifier.weight(1f).fillMaxWidth()
                 )
             }
-            // ── Divider ───────────────────────────────────────────────────────
-            Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(WdBorder))
-            // ── Side panel ────────────────────────────────────────────────────
-            WdSidePanel(
-                workspace     = currentWorkspace,
-                filteredTasks = filteredTasks,
-                stats         = stats,
-                members       = members,
-                isOwner       = isOwner,
-                currentUserId = currentUserId,
-                onRemoveMember = { userId ->
-                    scope.launch {
-                        workspaceRepo.removeMember(currentWorkspace.id, userId)
-                        refreshKey++
-                    }
-                },
-                modifier      = Modifier.width(340.dp).fillMaxHeight()
-            )
+            if (showSidePanel) {
+                // ── Divider ───────────────────────────────────────────────────────
+                Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(WdBorder))
+                // ── Side panel ────────────────────────────────────────────────────
+                WdSidePanel(
+                    workspace     = currentWorkspace,
+                    filteredTasks = filteredTasks,
+                    stats         = stats,
+                    members       = members,
+                    isOwner       = isOwner,
+                    currentUserId = currentUserId,
+                    onRemoveMember = { userId ->
+                        scope.launch {
+                            workspaceRepo.removeMember(currentWorkspace.id, userId)
+                            refreshKey++
+                        }
+                    },
+                    modifier      = Modifier.width(340.dp).fillMaxHeight()
+                )
+            }
         }
     }
 
