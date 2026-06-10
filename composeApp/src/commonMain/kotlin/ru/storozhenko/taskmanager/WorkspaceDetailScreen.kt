@@ -86,6 +86,7 @@ private fun taskInitials(task: TaskModel): String {
 fun WorkspaceDetailScreen(
     workspace: WorkspaceModel,
     token: String,
+    currentUserId: Int = 0,
     onBack: () -> Unit,
     onNavigateToTask: (TaskModel) -> Unit = {},
     onCreateTask: () -> Unit = {},
@@ -104,6 +105,8 @@ fun WorkspaceDetailScreen(
     var priorityFilter by remember { mutableStateOf("All") }
     var sortBy         by remember { mutableStateOf("Priority") }
     var showHeaderMenu by remember { mutableStateOf(false) }
+
+    val isOwner = currentUserId != 0 && currentUserId == workspace.ownerId
 
     LaunchedEffect(workspace.id, refreshKey) {
         isLoading = true
@@ -149,11 +152,13 @@ fun WorkspaceDetailScreen(
                     onPriorityChange = { priorityFilter = it },
                     sortBy           = sortBy,
                     onSortChange     = { sortBy = it },
+                    isOwner          = isOwner,
                     onCreateTask     = onCreateTask
                 )
                 WdKanbanBoard(
                     tasks        = filteredTasks,
                     isLoading    = isLoading,
+                    isOwner      = isOwner,
                     onTaskClick  = onNavigateToTask,
                     onEditTask   = onEditTask,
                     onDeleteTask = { task ->
@@ -340,6 +345,7 @@ private fun WdToolbar(
     onPriorityChange: (String) -> Unit,
     sortBy: String,
     onSortChange: (String) -> Unit,
+    isOwner: Boolean = false,
     onCreateTask: () -> Unit = {}
 ) {
     var priorityExpanded by remember { mutableStateOf(false) }
@@ -415,13 +421,15 @@ private fun WdToolbar(
 
             Spacer(Modifier.weight(1f))
 
-            Button(
-                onClick        = onCreateTask,
-                colors         = ButtonDefaults.buttonColors(containerColor = WdBlue),
-                shape          = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                Text("+ Add Task", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            if (isOwner) {
+                Button(
+                    onClick        = onCreateTask,
+                    colors         = ButtonDefaults.buttonColors(containerColor = WdBlue),
+                    shape          = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                ) {
+                    Text("+ Add Task", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
         HorizontalDivider(color = WdBorder)
@@ -433,6 +441,7 @@ private fun WdToolbar(
 private fun WdKanbanBoard(
     tasks: List<TaskModel>,
     isLoading: Boolean,
+    isOwner: Boolean = false,
     onTaskClick: (TaskModel) -> Unit = {},
     onEditTask: (TaskModel) -> Unit = {},
     onDeleteTask: (TaskModel) -> Unit = {},
@@ -456,6 +465,7 @@ private fun WdKanbanBoard(
                 WdKanbanColumn(
                     col          = col,
                     tasks        = tasks.filter { it.status.uppercase() == col.status },
+                    isOwner      = isOwner,
                     onTaskClick  = onTaskClick,
                     onEditTask   = onEditTask,
                     onDeleteTask = onDeleteTask,
@@ -471,6 +481,7 @@ private fun WdKanbanBoard(
 private fun WdKanbanColumn(
     col: WdCol,
     tasks: List<TaskModel>,
+    isOwner: Boolean = false,
     onTaskClick: (TaskModel) -> Unit = {},
     onEditTask: (TaskModel) -> Unit = {},
     onDeleteTask: (TaskModel) -> Unit = {},
@@ -507,7 +518,7 @@ private fun WdKanbanColumn(
         }
         // Cards
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            tasks.forEach { task -> WdTaskCard(task, onTaskClick, onEditTask, onDeleteTask) }
+            tasks.forEach { task -> WdTaskCard(task, isOwner, onTaskClick, onEditTask, onDeleteTask) }
         }
     }
 }
@@ -516,6 +527,7 @@ private fun WdKanbanColumn(
 @Composable
 private fun WdTaskCard(
     task: TaskModel,
+    isOwner: Boolean = false,
     onTaskClick: (TaskModel) -> Unit = {},
     onEditTask: (TaskModel) -> Unit = {},
     onDeleteTask: (TaskModel) -> Unit = {}
@@ -561,12 +573,20 @@ private fun WdTaskCard(
                         Text("⋮", fontSize = 14.sp, color = WdTextMuted)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(text = { Text("View details") }, onClick = { showMenu = false; onTaskClick(task) })
-                        DropdownMenuItem(text = { Text("Edit") },         onClick = { showMenu = false; onEditTask(task) })
                         DropdownMenuItem(
-                            text    = { Text("Delete", color = WdRed) },
-                            onClick = { showMenu = false; onDeleteTask(task) }
+                            text    = { Text("View details") },
+                            onClick = { showMenu = false; onTaskClick(task) }
                         )
+                        if (isOwner) {
+                            DropdownMenuItem(
+                                text    = { Text("Edit") },
+                                onClick = { showMenu = false; onEditTask(task) }
+                            )
+                            DropdownMenuItem(
+                                text    = { Text("Delete", color = WdRed) },
+                                onClick = { showMenu = false; onDeleteTask(task) }
+                            )
+                        }
                     }
                 }
             }

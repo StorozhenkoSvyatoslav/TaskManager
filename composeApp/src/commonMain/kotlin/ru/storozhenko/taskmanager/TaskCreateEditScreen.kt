@@ -26,9 +26,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
 import ru.storozhenko.taskmanager.models.CreateTaskRequest
 import ru.storozhenko.taskmanager.models.TaskModel
+import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 
 // ── Colors ────────────────────────────────────────────────────────────────────
@@ -42,16 +42,18 @@ private val TcGreen     = Color(0xFF10B981)
 private val TcAmber     = Color(0xFFF59E0B)
 private val TcRed       = Color(0xFFEF4444)
 
-// ── Mock assignees ─────────────────────────────────────────────────────────────
-private data class TcMember(val initials: String, val name: String, val color: Color)
-
-private val TC_MEMBERS = listOf(
-    TcMember("SC", "Sarah Chen",   Color(0xFF8B5CF6)),
-    TcMember("MJ", "Mike Johnson", Color(0xFFEC4899)),
-    TcMember("AK", "Alex Kim",     Color(0xFFF59E0B)),
-    TcMember("JL", "Jordan Lee",   Color(0xFF10B981)),
-    TcMember("TS", "Taylor Smith", Color(0xFF3B82F6)),
+// ── Member helpers ─────────────────────────────────────────────────────────────
+private val TC_MEMBER_COLORS = listOf(
+    Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFF59E0B),
+    Color(0xFF10B981), Color(0xFF3B82F6), Color(0xFFEF4444),
 )
+private fun tcMemberColor(userId: Int) = TC_MEMBER_COLORS[userId % TC_MEMBER_COLORS.size]
+private fun tcMemberInitials(username: String) =
+    username.split(" ", "_", ".")
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString("") { it[0].uppercaseChar().toString() }
+        .ifEmpty { username.take(2).uppercase() }
 
 // ── Local data models ─────────────────────────────────────────────────────────
 private data class TcChecklistItem(val id: Int, val text: String, val checked: Boolean)
@@ -83,9 +85,10 @@ fun TaskCreateEditScreen(
     onTaskCreated: () -> Unit,
     existingTask: TaskModel? = null
 ) {
-    val repo       = remember(token) { TaskRepository(token) }
-    val scope      = rememberCoroutineScope()
-    val isEditMode = existingTask != null
+    val repo          = remember(token) { TaskRepository(token) }
+    val workspaceRepo = remember(token) { WorkspaceRepository(token) }
+    val scope         = rememberCoroutineScope()
+    val isEditMode    = existingTask != null
 
     // Form state — prefilled from existingTask when editing
     var title           by remember { mutableStateOf(existingTask?.title ?: "") }
@@ -93,7 +96,12 @@ fun TaskCreateEditScreen(
     var status          by remember { mutableStateOf(existingTask?.status ?: "TODO") }
     var dueDate         by remember { mutableStateOf("") }
     var priority        by remember { mutableStateOf(existingTask?.priority ?: "MEDIUM") }
-    var assigneeIdx     by remember { mutableStateOf<Int?>(null) }
+    var assignee        by remember { mutableStateOf<WorkspaceMemberModel?>(null) }
+    var members         by remember { mutableStateOf<List<WorkspaceMemberModel>>(emptyList()) }
+
+    LaunchedEffect(workspace.id) {
+        members = workspaceRepo.getMembers(workspace.id).getOrElse { emptyList() }
+    }
 
     // Checklist state
     var checklistInput  by remember { mutableStateOf("") }
@@ -110,7 +118,7 @@ fun TaskCreateEditScreen(
 
     fun reset() {
         title = ""; description = ""; status = "TODO"; dueDate = ""
-        priority = "MEDIUM"; assigneeIdx = null
+        priority = "MEDIUM"; assignee = null
         checklistInput = ""; checklistItems = emptyList()
         attachments = emptyList(); errorMsg = null
     }
@@ -252,9 +260,10 @@ fun TaskCreateEditScreen(
                                 }
                                 TcField("Assignee", modifier = Modifier.weight(1f)) {
                                     TcAssigneeDropdown(
-                                        selectedIdx = assigneeIdx,
-                                        onSelect    = { assigneeIdx = it },
-                                        modifier    = Modifier.fillMaxWidth()
+                                        members  = members,
+                                        selected = assignee,
+                                        onSelect = { assignee = it },
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
@@ -525,12 +534,12 @@ private fun TcPriorityGroup(selected: String, onSelect: (String) -> Unit) {
 // ── Assignee dropdown with avatars ────────────────────────────────────────────
 @Composable
 private fun TcAssigneeDropdown(
-    selectedIdx: Int?,
-    onSelect: (Int?) -> Unit,
+    members: List<WorkspaceMemberModel>,
+    selected: WorkspaceMemberModel?,
+    onSelect: (WorkspaceMemberModel?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selected = selectedIdx?.let { TC_MEMBERS[it] }
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -548,15 +557,20 @@ private fun TcAssigneeDropdown(
             ) {
                 if (selected != null) {
                     Box(
-                        modifier         = Modifier.size(28.dp).background(selected.color, CircleShape),
+                        modifier         = Modifier.size(28.dp).background(tcMemberColor(selected.userId), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(selected.initials, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            tcMemberInitials(selected.username),
+                            color      = Color.White,
+                            fontSize   = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    Text(selected.name, modifier = Modifier.weight(1f), fontSize = 15.sp, color = TcTextPri)
+                    Text(selected.username, modifier = Modifier.weight(1f), fontSize = 15.sp, color = TcTextPri)
                 } else {
                     Text(
-                        "Select assignee...",
+                        if (members.isEmpty()) "Loading members..." else "Select assignee...",
                         modifier = Modifier.weight(1f),
                         fontSize = 15.sp,
                         color    = TcTextMuted
@@ -570,7 +584,7 @@ private fun TcAssigneeDropdown(
                 text    = { Text("None", color = TcTextMuted) },
                 onClick = { onSelect(null); expanded = false }
             )
-            TC_MEMBERS.forEachIndexed { idx, member ->
+            members.forEach { member ->
                 DropdownMenuItem(
                     text = {
                         Row(
@@ -578,15 +592,25 @@ private fun TcAssigneeDropdown(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Box(
-                                modifier         = Modifier.size(28.dp).background(member.color, CircleShape),
+                                modifier         = Modifier.size(28.dp).background(tcMemberColor(member.userId), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(member.initials, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    tcMemberInitials(member.username),
+                                    color      = Color.White,
+                                    fontSize   = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            Text(member.name, fontSize = 14.sp)
+                            Column {
+                                Text(member.username, fontSize = 14.sp, color = TcTextPri)
+                                if (member.role == "OWNER") {
+                                    Text("Owner", fontSize = 11.sp, color = TcBlue)
+                                }
+                            }
                         }
                     },
-                    onClick = { onSelect(idx); expanded = false }
+                    onClick = { onSelect(member); expanded = false }
                 )
             }
         }

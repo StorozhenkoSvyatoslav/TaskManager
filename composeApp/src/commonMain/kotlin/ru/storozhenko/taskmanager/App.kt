@@ -2,6 +2,8 @@ package ru.storozhenko.taskmanager
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import ru.storozhenko.taskmanager.models.TaskModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 
@@ -13,34 +15,49 @@ sealed class Screen {
     data class EditTask(val task: TaskModel, val workspace: WorkspaceModel) : Screen()
 }
 
+@OptIn(ExperimentalEncodingApi::class)
+private fun parseUserIdFromToken(token: String): Int {
+    return try {
+        val payload = token.split(".").getOrNull(1) ?: return 0
+        val base64  = payload.replace('-', '+').replace('_', '/')
+        val padded  = base64 + "=".repeat((4 - base64.length % 4) % 4)
+        val json    = Base64.decode(padded).decodeToString()
+        Regex("\"id\"\\s*:\\s*(\\d+)").find(json)?.groupValues?.get(1)?.toInt() ?: 0
+    } catch (_: Exception) { 0 }
+}
+
 @Composable
 fun App() {
     MaterialTheme {
-        var token  by remember { mutableStateOf(TokenStorage.load()) }
-        var screen by remember { mutableStateOf<Screen>(Screen.WorkspaceList) }
+        var token         by remember { mutableStateOf(TokenStorage.load()) }
+        var currentUserId by remember { mutableStateOf(token?.let { parseUserIdFromToken(it) } ?: 0) }
+        var screen        by remember { mutableStateOf<Screen>(Screen.WorkspaceList) }
 
         if (token == null) {
             AuthScreen(onAuthenticated = { jwt ->
                 TokenStorage.save(jwt)
                 token = jwt
+                currentUserId = parseUserIdFromToken(jwt)
                 screen = Screen.WorkspaceList
             })
         } else {
             val onLogout = {
                 TokenStorage.clear()
                 token = null
+                currentUserId = 0
             }
             ApiClient.onUnauthorized = onLogout
 
             when (val s = screen) {
                 is Screen.WorkspaceList -> WorkspaceListScreen(
-                    token                = token!!,
+                    token                 = token!!,
                     onNavigateToWorkspace = { ws -> screen = Screen.WorkspaceDetail(ws) },
-                    onLogout             = onLogout
+                    onLogout              = onLogout
                 )
                 is Screen.WorkspaceDetail -> WorkspaceDetailScreen(
                     workspace        = s.workspace,
                     token            = token!!,
+                    currentUserId    = currentUserId,
                     onBack           = { screen = Screen.WorkspaceList },
                     onNavigateToTask = { task -> screen = Screen.TaskDetail(task, s.workspace) },
                     onCreateTask     = { screen = Screen.CreateTask(s.workspace) },
