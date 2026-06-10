@@ -29,6 +29,7 @@ fun App() {
                 TokenStorage.clear()
                 token = null
             }
+            ApiClient.onUnauthorized = onLogout
 
             when (val s = screen) {
                 is Screen.WorkspaceList -> WorkspaceListScreen(

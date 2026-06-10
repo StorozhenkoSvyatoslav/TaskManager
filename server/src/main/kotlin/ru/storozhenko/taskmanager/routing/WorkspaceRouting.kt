@@ -8,10 +8,12 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import ru.storozhenko.taskmanager.database.tables.Users
 import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
 import ru.storozhenko.taskmanager.database.tables.Workspaces
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.JoinWorkspaceRequest
+import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 import java.time.ZoneOffset
 
@@ -110,6 +112,46 @@ fun Route.workspaceRouting() {
                     createdAt = created[Workspaces.createdAt].toEpochSecond(ZoneOffset.UTC)
                 )
             )
+        }
+
+        // Получить участников пространства (только члены)
+        get("/{id}/members") {
+            val workspaceId = call.parameters["id"]?.toIntOrNull()
+            if (workspaceId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid workspace id")
+                return@get
+            }
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()
+            if (userId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@get
+            }
+            val isMember = transaction {
+                WorkspaceMembers.selectAll()
+                    .where {
+                        (WorkspaceMembers.workspaceId eq workspaceId) and
+                        (WorkspaceMembers.userId eq userId)
+                    }
+                    .any()
+            }
+            if (!isMember) {
+                call.respond(HttpStatusCode.Forbidden, "Not a member")
+                return@get
+            }
+            val members = transaction {
+                (WorkspaceMembers innerJoin Users)
+                    .select(WorkspaceMembers.userId, Users.username, WorkspaceMembers.role)
+                    .where { WorkspaceMembers.workspaceId eq workspaceId }
+                    .map {
+                        WorkspaceMemberModel(
+                            userId   = it[WorkspaceMembers.userId],
+                            username = it[Users.username],
+                            role     = it[WorkspaceMembers.role],
+                        )
+                    }
+            }
+            call.respond(HttpStatusCode.OK, members)
         }
 
         // Получить inviteCode (только владелец/OWNER)

@@ -113,6 +113,7 @@ fun TaskDetailScreen(
     var refreshKey  by remember { mutableStateOf(0) }
     var commentText by remember { mutableStateOf("") }
     var isSending   by remember { mutableStateOf(false) }
+    var deletingIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
     LaunchedEffect(task.id) {
         isLoading = true
@@ -134,6 +135,16 @@ fun TaskDetailScreen(
                     refreshKey++
                 }
                 isSending = false
+            }
+        }
+    }
+
+    val onDeleteComment: (Int) -> Unit = { commentId ->
+        if (commentId !in deletingIds) {
+            scope.launch {
+                deletingIds = deletingIds + commentId
+                repo.deleteComment(task.id, commentId).onSuccess { refreshKey++ }
+                deletingIds = deletingIds - commentId
             }
         }
     }
@@ -171,12 +182,14 @@ fun TaskDetailScreen(
                     )
                     Box(Modifier.width(1.dp).fillMaxHeight().background(TdBorder))
                     TdCommentPanel(
-                        comments     = comments,
-                        commentText  = commentText,
-                        onTextChange = { commentText = it },
-                        isSending    = isSending,
-                        onSend       = onSend,
-                        modifier     = Modifier.width(380.dp).fillMaxHeight()
+                        comments         = comments,
+                        deletingIds      = deletingIds,
+                        commentText      = commentText,
+                        onTextChange     = { commentText = it },
+                        isSending        = isSending,
+                        onSend           = onSend,
+                        onDeleteComment  = onDeleteComment,
+                        modifier         = Modifier.width(380.dp).fillMaxHeight()
                     )
                 }
             }
@@ -376,10 +389,12 @@ private fun TdAttachmentItem(attachment: AttachmentModel) {
 @Composable
 private fun TdCommentPanel(
     comments: List<CommentModel>,
+    deletingIds: Set<Int>,
     commentText: String,
     onTextChange: (String) -> Unit,
     isSending: Boolean,
     onSend: () -> Unit,
+    onDeleteComment: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.background(Color.White)) {
@@ -431,7 +446,13 @@ private fun TdCommentPanel(
                     )
                 }
             } else {
-                comments.forEach { TdCommentItem(it) }
+                comments.forEach { c ->
+                    TdCommentItem(
+                        comment     = c,
+                        isDeleting  = c.id in deletingIds,
+                        onDelete    = { onDeleteComment(c.id) }
+                    )
+                }
             }
         }
 
@@ -481,7 +502,11 @@ private fun TdCommentPanel(
 }
 
 @Composable
-private fun TdCommentItem(comment: CommentModel) {
+private fun TdCommentItem(
+    comment: CommentModel,
+    isDeleting: Boolean,
+    onDelete: () -> Unit
+) {
     val color = authorColor(comment.authorId)
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -501,16 +526,30 @@ private fun TdCommentItem(comment: CommentModel) {
         }
         Column(modifier = Modifier.weight(1f)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     comment.authorUsername,
                     fontSize   = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color      = TdTextPri
+                    color      = TdTextPri,
+                    modifier   = Modifier.weight(1f)
                 )
                 Text(formatEpoch(comment.createdAt), fontSize = 12.sp, color = TdTextMuted)
+                if (isDeleting) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp, color = TdTextMuted)
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clickable(onClick = onDelete),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🗑", fontSize = 12.sp)
+                    }
+                }
             }
             Spacer(Modifier.height(3.dp))
             Text(comment.content, fontSize = 14.sp, color = TdTextPri, lineHeight = 21.sp)

@@ -4,6 +4,7 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
+import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 
 class WorkspaceRepository(private val token: String) {
@@ -34,5 +35,9 @@ class WorkspaceRepository(private val token: String) {
             setBody(ru.storozhenko.taskmanager.models.JoinWorkspaceRequest(inviteCode))
         }
         response.body()
+    }
+
+    suspend fun getMembers(workspaceId: Int): Result<List<WorkspaceMemberModel>> = runCatching {
+        client.get("$API_BASE/workspaces/$workspaceId/members") { auth() }.body()
     }
 }

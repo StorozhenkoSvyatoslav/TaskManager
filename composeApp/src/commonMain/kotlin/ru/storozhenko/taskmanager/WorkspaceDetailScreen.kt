@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.storozhenko.taskmanager.models.TaskModel
+import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 import ru.storozhenko.taskmanager.models.WorkspaceStats
 
@@ -48,16 +49,19 @@ private val WD_COLUMNS = listOf(
     WdCol("DONE",        "DONE",        WdGreen),
 )
 
-// ── Mock members (displayed in header avatar group and side panel) ────────────
-private data class WdMember(val initials: String, val name: String, val color: Color)
-
-private val WD_MEMBERS = listOf(
-    WdMember("SC", "Sarah Chen",    Color(0xFF8B5CF6)),
-    WdMember("MJ", "Mike Johnson",  Color(0xFFEC4899)),
-    WdMember("AK", "Alex Kim",      Color(0xFFF59E0B)),
-    WdMember("JL", "Jordan Lee",    Color(0xFF10B981)),
-    WdMember("TS", "Taylor Smith",  Color(0xFF3B82F6)),
+private val WD_MEMBER_COLORS = listOf(
+    Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFF59E0B),
+    Color(0xFF10B981), Color(0xFF3B82F6), Color(0xFFEF4444),
 )
+
+private fun wdMemberColor(userId: Int) = WD_MEMBER_COLORS[userId % WD_MEMBER_COLORS.size]
+
+private fun wdMemberInitials(username: String) =
+    username.split(" ", "_", ".")
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString("") { it[0].uppercaseChar().toString() }
+        .ifEmpty { username.take(2).uppercase() }
 
 private val WD_ACTIVITY = listOf(
     "Alex Kim completed 'Fix login bug'"            to "2 hours ago",
@@ -85,26 +89,39 @@ fun WorkspaceDetailScreen(
     onNavigateToTask: (TaskModel) -> Unit = {},
     onCreateTask: () -> Unit = {}
 ) {
-    val repo = remember(token) { TaskRepository(token) }
+    val taskRepo      = remember(token) { TaskRepository(token) }
+    val workspaceRepo = remember(token) { WorkspaceRepository(token) }
 
-    var tasks         by remember { mutableStateOf<List<TaskModel>>(emptyList()) }
-    var stats         by remember { mutableStateOf<WorkspaceStats?>(null) }
-    var isLoading     by remember { mutableStateOf(true) }
-    var searchQuery   by remember { mutableStateOf("") }
+    var tasks          by remember { mutableStateOf<List<TaskModel>>(emptyList()) }
+    var stats          by remember { mutableStateOf<WorkspaceStats?>(null) }
+    var members        by remember { mutableStateOf<List<WorkspaceMemberModel>>(emptyList()) }
+    var isLoading      by remember { mutableStateOf(true) }
+    var searchQuery    by remember { mutableStateOf("") }
     var priorityFilter by remember { mutableStateOf("All") }
-    var sortBy        by remember { mutableStateOf("Priority") }
+    var sortBy         by remember { mutableStateOf("Priority") }
     var showHeaderMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(workspace.id) {
         isLoading = true
-        tasks = repo.getTasksByWorkspace(workspace.id).getOrElse { emptyList() }
-        stats = repo.getWorkspaceStats(workspace.id).getOrNull()
+        tasks   = taskRepo.getTasksByWorkspace(workspace.id).getOrElse { emptyList() }
+        stats   = taskRepo.getWorkspaceStats(workspace.id).getOrNull()
+        members = workspaceRepo.getMembers(workspace.id).getOrElse { emptyList() }
         isLoading = false
     }
+
+    val priorityOrder = mapOf("HIGH" to 0, "MEDIUM" to 1, "LOW" to 2)
 
     val filteredTasks = tasks
         .filter { it.title.contains(searchQuery, ignoreCase = true) }
         .filter { priorityFilter == "All" || it.priority.equals(priorityFilter, ignoreCase = true) }
+        .let { list ->
+            when (sortBy) {
+                "Priority" -> list.sortedBy { priorityOrder[it.priority.uppercase()] ?: 3 }
+                "Due Date" -> list.sortedByDescending { it.createdAt }
+                "Assignee" -> list.sortedBy { it.authorId }
+                else       -> list
+            }
+        }
 
     Box(
         modifier = Modifier.fillMaxSize().background(WdPageBg),
@@ -115,6 +132,7 @@ fun WorkspaceDetailScreen(
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 WdHeaderBar(
                     workspace      = workspace,
+                    members        = members,
                     showMenu       = showHeaderMenu,
                     onMenuToggle   = { showHeaderMenu = !showHeaderMenu },
                     onMenuDismiss  = { showHeaderMenu = false },
@@ -143,6 +161,7 @@ fun WorkspaceDetailScreen(
                 workspace     = workspace,
                 filteredTasks = filteredTasks,
                 stats         = stats,
+                members       = members,
                 modifier      = Modifier.width(340.dp).fillMaxHeight()
             )
         }
@@ -153,6 +172,7 @@ fun WorkspaceDetailScreen(
 @Composable
 private fun WdHeaderBar(
     workspace: WorkspaceModel,
+    members: List<WorkspaceMemberModel>,
     showMenu: Boolean,
     onMenuToggle: () -> Unit,
     onMenuDismiss: () -> Unit,
@@ -213,7 +233,7 @@ private fun WdHeaderBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                WdAvatarGroup()
+                WdAvatarGroup(members)
                 // Invite members button
                 Box(
                     modifier = Modifier
@@ -276,13 +296,17 @@ private fun WdVisibilityChip(visibility: String) {
 }
 
 @Composable
-private fun WdAvatarGroup() {
+private fun WdAvatarGroup(members: List<WorkspaceMemberModel>) {
+    val visible = members.take(5)
+    val extra   = members.size - visible.size
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        WD_MEMBERS.forEach { m -> WdAvatar34(m.initials, m.color) }
-        WdAvatar34("+2", WdRed)
+        visible.forEach { m ->
+            WdAvatar34(wdMemberInitials(m.username), wdMemberColor(m.userId))
+        }
+        if (extra > 0) WdAvatar34("+$extra", WdRed)
     }
 }
 
@@ -581,12 +605,13 @@ private fun WdSidePanel(
     workspace: WorkspaceModel,
     filteredTasks: List<TaskModel>,
     stats: WorkspaceStats?,
+    members: List<WorkspaceMemberModel>,
     modifier: Modifier = Modifier
 ) {
     val doneCount   = filteredTasks.count { it.status.uppercase() == "DONE" }
     val totalCount  = filteredTasks.size
     val progress    = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f
-    val memberCount = stats?.totalMembers ?: WD_MEMBERS.size
+    val memberCount = if (members.isNotEmpty()) members.size else stats?.totalMembers ?: 0
 
     Column(
         modifier = modifier
@@ -642,19 +667,33 @@ private fun WdSidePanel(
             letterSpacing = 0.8.sp
         )
         Spacer(Modifier.height(12.dp))
-        WD_MEMBERS.forEach { m ->
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier              = Modifier.padding(vertical = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier.size(34.dp).background(WdPurple, CircleShape),
-                    contentAlignment = Alignment.Center
+        if (members.isEmpty()) {
+            Text("Loading members...", fontSize = 14.sp, color = WdTextMuted)
+        } else {
+            members.forEach { m ->
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier              = Modifier.padding(vertical = 4.dp)
                 ) {
-                    Text(m.initials, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier.size(34.dp).background(wdMemberColor(m.userId), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            wdMemberInitials(m.username),
+                            color      = Color.White,
+                            fontSize   = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Column {
+                        Text(m.username, fontSize = 14.sp, color = WdTextPri)
+                        if (m.role == "OWNER") {
+                            Text("Owner", fontSize = 11.sp, color = WdBlue)
+                        }
+                    }
                 }
-                Text(m.name, fontSize = 14.sp, color = WdTextPri)
             }
         }
         Spacer(Modifier.height(16.dp))
