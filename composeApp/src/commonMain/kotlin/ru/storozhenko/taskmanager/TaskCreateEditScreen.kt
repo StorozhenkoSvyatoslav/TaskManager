@@ -57,7 +57,6 @@ private fun tcMemberInitials(username: String) =
 
 // ── Local data models ─────────────────────────────────────────────────────────
 private data class TcChecklistItem(val id: Int, val text: String, val checked: Boolean)
-private data class TcAttachment(val name: String, val sizeKb: Int)
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 private val TC_STATUSES = listOf("TODO", "IN_PROGRESS", "REVIEW", "DONE")
@@ -68,13 +67,6 @@ private fun tcStatusLabel(s: String) = when (s) {
     "DONE"        -> "Done"
     else          -> s
 }
-
-private val MOCK_ATTACHMENTS = listOf(
-    "document.pdf" to 245,
-    "screenshot.png" to 89,
-    "report.xlsx" to 512,
-    "design.fig" to 1024,
-)
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 @Composable
@@ -108,9 +100,7 @@ fun TaskCreateEditScreen(
     var checklistItems  by remember { mutableStateOf<List<TcChecklistItem>>(emptyList()) }
     var nextItemId      by remember { mutableStateOf(0) }
 
-    // Attachments (mock — real file pick is platform-specific)
-    var attachments     by remember { mutableStateOf<List<TcAttachment>>(emptyList()) }
-    var nextAttachIdx   by remember { mutableStateOf(0) }
+    var attachments     by remember { mutableStateOf<List<PickedFile>>(emptyList()) }
 
     // Async state
     var isSaving        by remember { mutableStateOf(false) }
@@ -131,10 +121,10 @@ fun TaskCreateEditScreen(
         }
     }
 
-    fun addMockAttachment() {
-        val mock = MOCK_ATTACHMENTS[nextAttachIdx % MOCK_ATTACHMENTS.size]
-        attachments = attachments + TcAttachment(mock.first, mock.second)
-        nextAttachIdx++
+    fun pickAndAddFile() {
+        scope.launch {
+            pickFile()?.let { attachments = attachments + it }
+        }
     }
 
     fun saveTask() {
@@ -149,9 +139,9 @@ fun TaskCreateEditScreen(
                 workspaceId = workspace.id,
             )
             val result = if (existingTask != null) {
-                repo.updateTask(existingTask.id, req)
+                repo.updateTask(existingTask.id, req, attachments)
             } else {
-                repo.createTask(req)
+                repo.createTask(req, attachments)
             }
             result
                 .onSuccess { onTaskCreated() }
@@ -291,7 +281,7 @@ fun TaskCreateEditScreen(
                             // 7. Attachments
                             TcAttachmentSection(
                                 attachments   = attachments,
-                                onUploadClick = ::addMockAttachment,
+                                onUploadClick = ::pickAndAddFile,
                                 onRemove      = { idx ->
                                     attachments = attachments.toMutableList().also { it.removeAt(idx) }
                                 }
@@ -695,7 +685,7 @@ private fun TcChecklistSection(
 // ── Attachments section ───────────────────────────────────────────────────────
 @Composable
 private fun TcAttachmentSection(
-    attachments: List<TcAttachment>,
+    attachments: List<PickedFile>,
     onUploadClick: () -> Unit,
     onRemove: (Int) -> Unit
 ) {
@@ -709,9 +699,9 @@ private fun TcAttachmentSection(
                 .background(TcGray, RoundedCornerShape(8.dp))
                 .drawBehind {
                     drawRoundRect(
-                        color       = dashColor,
+                        color        = dashColor,
                         cornerRadius = CornerRadius(8.dp.toPx()),
-                        style       = Stroke(
+                        style        = Stroke(
                             width      = 1.5.dp.toPx(),
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))
                         )
@@ -721,8 +711,8 @@ private fun TcAttachmentSection(
             contentAlignment = Alignment.Center
         ) {
             Column(
-                horizontalAlignment   = Alignment.CenterHorizontally,
-                verticalArrangement   = Arrangement.spacedBy(4.dp)
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("☁", fontSize = 24.sp, color = TcTextMuted)
                 Text("Click to upload files", fontSize = 14.sp, color = TcTextMuted)
@@ -744,7 +734,12 @@ private fun TcAttachmentSection(
                         Text("📎", fontSize = 18.sp)
                         Column(modifier = Modifier.weight(1f)) {
                             Text(file.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TcTextPri)
-                            Text("${file.sizeKb} KB", fontSize = 12.sp, color = TcTextMuted)
+                            Text(
+                                if (file.bytes.size < 1024) "${file.bytes.size} B"
+                                else "${file.bytes.size / 1024} KB",
+                                fontSize = 12.sp,
+                                color    = TcTextMuted
+                            )
                         }
                         Box(
                             modifier         = Modifier.size(28.dp).clickable { onRemove(idx) },

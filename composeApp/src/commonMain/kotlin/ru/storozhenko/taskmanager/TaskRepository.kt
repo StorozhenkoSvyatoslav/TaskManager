@@ -47,14 +47,18 @@ class TaskRepository(private val token: String) {
         Unit
     }
 
-    suspend fun createTask(request: CreateTaskRequest): Result<Unit> = runCatching {
+    suspend fun createTask(request: CreateTaskRequest, files: List<PickedFile> = emptyList()): Result<Unit> = runCatching {
         client.post("$API_BASE/tasks") {
             auth()
-            setBody(MultiPartFormDataContent(
-                formData {
-                    append("task", Json.encodeToString(request))
+            setBody(MultiPartFormDataContent(formData {
+                append("task", Json.encodeToString(request))
+                files.forEach { f ->
+                    append("file", f.bytes, Headers.build {
+                        f.mimeType?.let { append(HttpHeaders.ContentType, it) }
+                        append(HttpHeaders.ContentDisposition, "filename=\"${f.name}\"")
+                    })
                 }
-            ))
+            }))
         }
         Unit
     }
@@ -64,14 +68,18 @@ class TaskRepository(private val token: String) {
         Unit
     }
 
-    suspend fun updateTask(taskId: Int, request: CreateTaskRequest): Result<Unit> = runCatching {
+    suspend fun updateTask(taskId: Int, request: CreateTaskRequest, files: List<PickedFile> = emptyList()): Result<Unit> = runCatching {
         client.put("$API_BASE/tasks/$taskId") {
             auth()
-            setBody(MultiPartFormDataContent(
-                formData {
-                    append("task", Json.encodeToString(request))
+            setBody(MultiPartFormDataContent(formData {
+                append("task", Json.encodeToString(request))
+                files.forEach { f ->
+                    append("file", f.bytes, Headers.build {
+                        f.mimeType?.let { append(HttpHeaders.ContentType, it) }
+                        append(HttpHeaders.ContentDisposition, "filename=\"${f.name}\"")
+                    })
                 }
-            ))
+            }))
         }
         Unit
     }
