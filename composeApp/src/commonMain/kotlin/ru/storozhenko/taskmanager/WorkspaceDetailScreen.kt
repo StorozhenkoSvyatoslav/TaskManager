@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import ru.storozhenko.taskmanager.models.TaskModel
 import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
@@ -92,17 +93,19 @@ fun WorkspaceDetailScreen(
 ) {
     val taskRepo      = remember(token) { TaskRepository(token) }
     val workspaceRepo = remember(token) { WorkspaceRepository(token) }
+    val scope         = rememberCoroutineScope()
 
     var tasks          by remember { mutableStateOf<List<TaskModel>>(emptyList()) }
     var stats          by remember { mutableStateOf<WorkspaceStats?>(null) }
     var members        by remember { mutableStateOf<List<WorkspaceMemberModel>>(emptyList()) }
     var isLoading      by remember { mutableStateOf(true) }
+    var refreshKey     by remember { mutableStateOf(0) }
     var searchQuery    by remember { mutableStateOf("") }
     var priorityFilter by remember { mutableStateOf("All") }
     var sortBy         by remember { mutableStateOf("Priority") }
     var showHeaderMenu by remember { mutableStateOf(false) }
 
-    LaunchedEffect(workspace.id) {
+    LaunchedEffect(workspace.id, refreshKey) {
         isLoading = true
         tasks   = taskRepo.getTasksByWorkspace(workspace.id).getOrElse { emptyList() }
         stats   = taskRepo.getWorkspaceStats(workspace.id).getOrNull()
@@ -153,6 +156,12 @@ fun WorkspaceDetailScreen(
                     isLoading    = isLoading,
                     onTaskClick  = onNavigateToTask,
                     onEditTask   = onEditTask,
+                    onDeleteTask = { task ->
+                        scope.launch {
+                            taskRepo.deleteTask(task.id)
+                            refreshKey++
+                        }
+                    },
                     modifier     = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -426,6 +435,7 @@ private fun WdKanbanBoard(
     isLoading: Boolean,
     onTaskClick: (TaskModel) -> Unit = {},
     onEditTask: (TaskModel) -> Unit = {},
+    onDeleteTask: (TaskModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (isLoading) {
@@ -444,11 +454,12 @@ private fun WdKanbanBoard(
         ) {
             WD_COLUMNS.forEach { col ->
                 WdKanbanColumn(
-                    col         = col,
-                    tasks       = tasks.filter { it.status.uppercase() == col.status },
-                    onTaskClick = onTaskClick,
-                    onEditTask  = onEditTask,
-                    modifier    = Modifier.weight(1f)
+                    col          = col,
+                    tasks        = tasks.filter { it.status.uppercase() == col.status },
+                    onTaskClick  = onTaskClick,
+                    onEditTask   = onEditTask,
+                    onDeleteTask = onDeleteTask,
+                    modifier     = Modifier.weight(1f)
                 )
             }
         }
@@ -462,6 +473,7 @@ private fun WdKanbanColumn(
     tasks: List<TaskModel>,
     onTaskClick: (TaskModel) -> Unit = {},
     onEditTask: (TaskModel) -> Unit = {},
+    onDeleteTask: (TaskModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -495,7 +507,7 @@ private fun WdKanbanColumn(
         }
         // Cards
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            tasks.forEach { task -> WdTaskCard(task, onTaskClick, onEditTask) }
+            tasks.forEach { task -> WdTaskCard(task, onTaskClick, onEditTask, onDeleteTask) }
         }
     }
 }
@@ -505,7 +517,8 @@ private fun WdKanbanColumn(
 private fun WdTaskCard(
     task: TaskModel,
     onTaskClick: (TaskModel) -> Unit = {},
-    onEditTask: (TaskModel) -> Unit = {}
+    onEditTask: (TaskModel) -> Unit = {},
+    onDeleteTask: (TaskModel) -> Unit = {}
 ) {
     val hoverSource = remember { MutableInteractionSource() }
     val isHovered   by hoverSource.collectIsHoveredAsState()
@@ -550,7 +563,10 @@ private fun WdTaskCard(
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(text = { Text("View details") }, onClick = { showMenu = false; onTaskClick(task) })
                         DropdownMenuItem(text = { Text("Edit") },         onClick = { showMenu = false; onEditTask(task) })
-                        DropdownMenuItem(text = { Text("Delete") },       onClick = { showMenu = false })
+                        DropdownMenuItem(
+                            text    = { Text("Delete", color = WdRed) },
+                            onClick = { showMenu = false; onDeleteTask(task) }
+                        )
                     }
                 }
             }

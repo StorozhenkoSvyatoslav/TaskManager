@@ -59,6 +59,11 @@ class TaskRepository(private val token: String) {
         Unit
     }
 
+    suspend fun deleteTask(taskId: Int): Result<Unit> = runCatching {
+        client.delete("$API_BASE/tasks/$taskId") { auth() }
+        Unit
+    }
+
     suspend fun updateTask(taskId: Int, request: CreateTaskRequest): Result<Unit> = runCatching {
         client.put("$API_BASE/tasks/$taskId") {
             auth()
