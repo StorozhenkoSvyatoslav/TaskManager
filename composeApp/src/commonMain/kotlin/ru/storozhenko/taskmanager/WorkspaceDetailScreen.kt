@@ -87,7 +87,8 @@ fun WorkspaceDetailScreen(
     token: String,
     onBack: () -> Unit,
     onNavigateToTask: (TaskModel) -> Unit = {},
-    onCreateTask: () -> Unit = {}
+    onCreateTask: () -> Unit = {},
+    onEditTask: (TaskModel) -> Unit = {}
 ) {
     val taskRepo      = remember(token) { TaskRepository(token) }
     val workspaceRepo = remember(token) { WorkspaceRepository(token) }
@@ -151,6 +152,7 @@ fun WorkspaceDetailScreen(
                     tasks        = filteredTasks,
                     isLoading    = isLoading,
                     onTaskClick  = onNavigateToTask,
+                    onEditTask   = onEditTask,
                     modifier     = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -423,6 +425,7 @@ private fun WdKanbanBoard(
     tasks: List<TaskModel>,
     isLoading: Boolean,
     onTaskClick: (TaskModel) -> Unit = {},
+    onEditTask: (TaskModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (isLoading) {
@@ -444,6 +447,7 @@ private fun WdKanbanBoard(
                     col         = col,
                     tasks       = tasks.filter { it.status.uppercase() == col.status },
                     onTaskClick = onTaskClick,
+                    onEditTask  = onEditTask,
                     modifier    = Modifier.weight(1f)
                 )
             }
@@ -457,6 +461,7 @@ private fun WdKanbanColumn(
     col: WdCol,
     tasks: List<TaskModel>,
     onTaskClick: (TaskModel) -> Unit = {},
+    onEditTask: (TaskModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -490,14 +495,18 @@ private fun WdKanbanColumn(
         }
         // Cards
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            tasks.forEach { task -> WdTaskCard(task, onTaskClick) }
+            tasks.forEach { task -> WdTaskCard(task, onTaskClick, onEditTask) }
         }
     }
 }
 
 // ── Task Card ─────────────────────────────────────────────────────────────────
 @Composable
-private fun WdTaskCard(task: TaskModel, onTaskClick: (TaskModel) -> Unit = {}) {
+private fun WdTaskCard(
+    task: TaskModel,
+    onTaskClick: (TaskModel) -> Unit = {},
+    onEditTask: (TaskModel) -> Unit = {}
+) {
     val hoverSource = remember { MutableInteractionSource() }
     val isHovered   by hoverSource.collectIsHoveredAsState()
     var showMenu    by remember { mutableStateOf(false) }
@@ -540,7 +549,7 @@ private fun WdTaskCard(task: TaskModel, onTaskClick: (TaskModel) -> Unit = {}) {
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(text = { Text("View details") }, onClick = { showMenu = false; onTaskClick(task) })
-                        DropdownMenuItem(text = { Text("Edit") },         onClick = { showMenu = false })
+                        DropdownMenuItem(text = { Text("Edit") },         onClick = { showMenu = false; onEditTask(task) })
                         DropdownMenuItem(text = { Text("Delete") },       onClick = { showMenu = false })
                     }
                 }

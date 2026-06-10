@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import ru.storozhenko.taskmanager.models.CreateTaskRequest
+import ru.storozhenko.taskmanager.models.TaskModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 
 // ── Colors ────────────────────────────────────────────────────────────────────
@@ -79,17 +80,19 @@ fun TaskCreateEditScreen(
     workspace: WorkspaceModel,
     token: String,
     onBack: () -> Unit,
-    onTaskCreated: () -> Unit
+    onTaskCreated: () -> Unit,
+    existingTask: TaskModel? = null
 ) {
-    val repo  = remember(token) { TaskRepository(token) }
-    val scope = rememberCoroutineScope()
+    val repo       = remember(token) { TaskRepository(token) }
+    val scope      = rememberCoroutineScope()
+    val isEditMode = existingTask != null
 
-    // Form state
-    var title           by remember { mutableStateOf("") }
-    var description     by remember { mutableStateOf("") }
-    var status          by remember { mutableStateOf("TODO") }
+    // Form state — prefilled from existingTask when editing
+    var title           by remember { mutableStateOf(existingTask?.title ?: "") }
+    var description     by remember { mutableStateOf(existingTask?.description ?: "") }
+    var status          by remember { mutableStateOf(existingTask?.status ?: "TODO") }
     var dueDate         by remember { mutableStateOf("") }
-    var priority        by remember { mutableStateOf("MEDIUM") }
+    var priority        by remember { mutableStateOf(existingTask?.priority ?: "MEDIUM") }
     var assigneeIdx     by remember { mutableStateOf<Int?>(null) }
 
     // Checklist state
@@ -137,9 +140,14 @@ fun TaskCreateEditScreen(
                 priority    = priority,
                 workspaceId = workspace.id,
             )
-            repo.createTask(req)
+            val result = if (existingTask != null) {
+                repo.updateTask(existingTask.id, req)
+            } else {
+                repo.createTask(req)
+            }
+            result
                 .onSuccess { onTaskCreated() }
-                .onFailure { errorMsg = it.message ?: "Failed to create task." }
+                .onFailure { errorMsg = it.message ?: if (isEditMode) "Failed to update task." else "Failed to create task." }
             isSaving = false
         }
     }
@@ -150,7 +158,7 @@ fun TaskCreateEditScreen(
         contentAlignment = Alignment.TopCenter
     ) {
         Column(modifier = Modifier.widthIn(max = 1920.dp).fillMaxSize()) {
-            TcTopBar(onBack = onBack)
+            TcTopBar(onBack = onBack, isEditMode = isEditMode)
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -163,7 +171,7 @@ fun TaskCreateEditScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     // Page header
-                    TcPageHeader()
+                    TcPageHeader(isEditMode = isEditMode)
 
                     // Form card
                     Card(
@@ -324,7 +332,10 @@ fun TaskCreateEditScreen(
                             } else {
                                 Text("✓ ", fontSize = 15.sp)
                             }
-                            Text("Save Task", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (isEditMode) "Update Task" else "Save Task",
+                                fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }
@@ -335,7 +346,7 @@ fun TaskCreateEditScreen(
 
 // ── Top bar ───────────────────────────────────────────────────────────────────
 @Composable
-private fun TcTopBar(onBack: () -> Unit) {
+private fun TcTopBar(onBack: () -> Unit, isEditMode: Boolean = false) {
     Column {
         Row(
             modifier = Modifier
@@ -355,7 +366,7 @@ private fun TcTopBar(onBack: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             Text(
-                "Create New Task",
+                if (isEditMode) "Edit Task" else "Create New Task",
                 fontWeight = FontWeight.Bold,
                 fontSize   = 20.sp,
                 color      = TcTextPri
@@ -367,7 +378,7 @@ private fun TcTopBar(onBack: () -> Unit) {
 
 // ── Page header ───────────────────────────────────────────────────────────────
 @Composable
-private fun TcPageHeader() {
+private fun TcPageHeader(isEditMode: Boolean = false) {
     Row(
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -380,13 +391,14 @@ private fun TcPageHeader() {
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Create New Task",
+                if (isEditMode) "Edit Task" else "Create New Task",
                 fontSize   = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color      = TcTextPri
             )
             Text(
-                "Fill in the details below to create a new task for your team.",
+                if (isEditMode) "Update the task details below."
+                else "Fill in the details below to create a new task for your team.",
                 fontSize = 14.sp,
                 color    = TcTextMuted
             )

@@ -58,4 +58,16 @@ class TaskRepository(private val token: String) {
         }
         Unit
     }
+
+    suspend fun updateTask(taskId: Int, request: CreateTaskRequest): Result<Unit> = runCatching {
+        client.put("$API_BASE/tasks/$taskId") {
+            auth()
+            setBody(MultiPartFormDataContent(
+                formData {
+                    append("task", Json.encodeToString(request))
+                }
+            ))
+        }
+        Unit
+    }
 }
