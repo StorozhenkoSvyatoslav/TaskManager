@@ -43,7 +43,7 @@ private fun wsAvatarColor(name: String) =
 @Composable
 fun WorkspaceListScreen(
     token: String,
-    onNavigateToWorkspace: (Int) -> Unit,
+    onNavigateToWorkspace: (WorkspaceModel) -> Unit,
     onLogout: () -> Unit
 ) {
     val repo = remember(token) { WorkspaceRepository(token) }
@@ -215,7 +215,7 @@ fun WorkspaceListScreen(
                         items(filteredWorkspaces, key = { it.id }) { workspace ->
                             WsCard(
                                 workspace = workspace,
-                                onClick = { onNavigateToWorkspace(workspace.id) }
+                                onClick = { onNavigateToWorkspace(workspace) }
                             )
                         }
                     }

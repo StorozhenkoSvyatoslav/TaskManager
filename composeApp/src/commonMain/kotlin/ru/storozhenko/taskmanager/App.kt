@@ -1,22 +1,18 @@
 package ru.storozhenko.taskmanager
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import ru.storozhenko.taskmanager.models.WorkspaceModel
 
 sealed class Screen {
     object WorkspaceList : Screen()
-    data class WorkspaceDetail(val workspaceId: Int) : Screen()
+    data class WorkspaceDetail(val workspace: WorkspaceModel) : Screen()
 }
 
 @Composable
 fun App() {
     MaterialTheme {
-        var token by remember { mutableStateOf(TokenStorage.load()) }
+        var token  by remember { mutableStateOf(TokenStorage.load()) }
         var screen by remember { mutableStateOf<Screen>(Screen.WorkspaceList) }
 
         if (token == null) {
@@ -33,25 +29,16 @@ fun App() {
 
             when (val s = screen) {
                 is Screen.WorkspaceList -> WorkspaceListScreen(
-                    token = token!!,
-                    onNavigateToWorkspace = { id -> screen = Screen.WorkspaceDetail(id) },
-                    onLogout = onLogout
+                    token                = token!!,
+                    onNavigateToWorkspace = { ws -> screen = Screen.WorkspaceDetail(ws) },
+                    onLogout             = onLogout
                 )
-                is Screen.WorkspaceDetail -> WorkspaceDetailPlaceholder(
-                    workspaceId = s.workspaceId,
-                    onBack = { screen = Screen.WorkspaceList }
+                is Screen.WorkspaceDetail -> WorkspaceDetailScreen(
+                    workspace = s.workspace,
+                    token     = token!!,
+                    onBack    = { screen = Screen.WorkspaceList }
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun WorkspaceDetailPlaceholder(
-    workspaceId: Int,
-    onBack: () -> Unit
-) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("WorkspaceDetailScreen #$workspaceId — в разработке")
     }
 }
