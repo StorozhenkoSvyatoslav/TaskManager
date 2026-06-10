@@ -1,5 +1,6 @@
 package ru.storozhenko.taskmanager
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -96,6 +100,12 @@ private fun commentInitials(username: String): String =
 private fun authorColor(authorId: Int): Color =
     TdCommentColors[authorId % TdCommentColors.size]
 
+private fun isImageMime(mimeType: String?): Boolean =
+    mimeType?.startsWith("image/") == true
+
+private fun isImageByName(name: String): Boolean =
+    name.lowercase().let { n -> n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".gif") || n.endsWith(".webp") || n.endsWith(".bmp") }
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 @Composable
 fun TaskDetailScreen(
@@ -107,21 +117,24 @@ fun TaskDetailScreen(
     val repo  = remember(token) { TaskRepository(token) }
     val scope = rememberCoroutineScope()
 
-    var detail      by remember { mutableStateOf<TaskDetailModel?>(null) }
-    var comments    by remember { mutableStateOf<List<CommentModel>>(emptyList()) }
-    var isLoading   by remember { mutableStateOf(true) }
-    var refreshKey  by remember { mutableStateOf(0) }
-    var commentText by remember { mutableStateOf("") }
-    var isSending   by remember { mutableStateOf(false) }
-    var deletingIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var detail          by remember { mutableStateOf<TaskDetailModel?>(null) }
+    var comments        by remember { mutableStateOf<List<CommentModel>>(emptyList()) }
+    var isLoading       by remember { mutableStateOf(true) }
+    var isUploading     by remember { mutableStateOf(false) }
+    var detailRefreshKey by remember { mutableStateOf(0) }
+    var commentRefreshKey by remember { mutableStateOf(0) }
+    var commentText     by remember { mutableStateOf("") }
+    var isSending       by remember { mutableStateOf(false) }
+    var deletingIds     by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
-    LaunchedEffect(task.id) {
-        isLoading = true
+    // Load / reload task detail (attachments included)
+    LaunchedEffect(task.id, detailRefreshKey) {
+        if (detailRefreshKey == 0) isLoading = true
         detail    = repo.getTask(task.id).getOrNull()
         isLoading = false
     }
 
-    LaunchedEffect(task.id, refreshKey) {
+    LaunchedEffect(task.id, commentRefreshKey) {
         comments = repo.getComments(task.id).getOrElse { emptyList() }
     }
 
@@ -132,7 +145,7 @@ fun TaskDetailScreen(
                 isSending = true
                 repo.postComment(task.id, text).onSuccess {
                     commentText = ""
-                    refreshKey++
+                    commentRefreshKey++
                 }
                 isSending = false
             }
@@ -143,9 +156,18 @@ fun TaskDetailScreen(
         if (commentId !in deletingIds) {
             scope.launch {
                 deletingIds = deletingIds + commentId
-                repo.deleteComment(task.id, commentId).onSuccess { refreshKey++ }
+                repo.deleteComment(task.id, commentId).onSuccess { commentRefreshKey++ }
                 deletingIds = deletingIds - commentId
             }
+        }
+    }
+
+    val onUploadAttachment: () -> Unit = {
+        scope.launch {
+            val file = pickFile() ?: return@launch
+            isUploading = true
+            repo.uploadAttachment(task.id, file).onSuccess { detailRefreshKey++ }
+            isUploading = false
         }
     }
 
@@ -175,10 +197,13 @@ fun TaskDetailScreen(
             } else {
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     TdMainPanel(
-                        task      = displayTask,
-                        detail    = detail,
-                        workspace = workspace,
-                        modifier  = Modifier.weight(1f).fillMaxHeight()
+                        task            = displayTask,
+                        detail          = detail,
+                        workspace       = workspace,
+                        repo            = repo,
+                        isUploading     = isUploading,
+                        onUploadClick   = onUploadAttachment,
+                        modifier        = Modifier.weight(1f).fillMaxHeight()
                     )
                     Box(Modifier.width(1.dp).fillMaxHeight().background(TdBorder))
                     TdCommentPanel(
@@ -255,12 +280,7 @@ private fun TdStatusChip(status: String) {
             .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(
-            tdStatusLabel(status),
-            color      = color,
-            fontSize   = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(tdStatusLabel(status), color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -287,6 +307,9 @@ private fun TdMainPanel(
     task: TaskModel,
     detail: TaskDetailModel?,
     workspace: WorkspaceModel,
+    repo: TaskRepository,
+    isUploading: Boolean,
+    onUploadClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -315,17 +338,46 @@ private fun TdMainPanel(
         TdMetaRow("Created",   formatEpoch(task.createdAt))
         TdMetaRow("Updated",   formatEpoch(task.updatedAt))
 
-        if (detail != null) {
-            Spacer(Modifier.height(28.dp))
-            HorizontalDivider(color = TdBorder)
-            Spacer(Modifier.height(20.dp))
-            TdSectionLabel("ATTACHMENTS (${detail.attachments.size})")
-            Spacer(Modifier.height(12.dp))
-            if (detail.attachments.isEmpty()) {
-                Text("No attachments.", fontSize = 14.sp, color = TdTextMuted)
+        Spacer(Modifier.height(28.dp))
+        HorizontalDivider(color = TdBorder)
+        Spacer(Modifier.height(20.dp))
+
+        // Attachments header with upload button
+        Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TdSectionLabel("ATTACHMENTS (${detail?.attachments?.size ?: 0})")
+            Spacer(Modifier.weight(1f))
+            if (isUploading) {
+                CircularProgressIndicator(
+                    modifier    = Modifier.size(20.dp),
+                    color       = TdBlue,
+                    strokeWidth = 2.dp
+                )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    detail.attachments.forEach { TdAttachmentItem(it) }
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .background(TdBlue, CircleShape)
+                        .clickable(onClick = onUploadClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("+", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        if (detail == null) {
+            // still loading
+        } else if (detail.attachments.isEmpty()) {
+            Text("No attachments.", fontSize = 14.sp, color = TdTextMuted)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                detail.attachments.forEach { attachment ->
+                    TdAttachmentItem(attachment = attachment, repo = repo)
                 }
             }
         }
@@ -346,9 +398,7 @@ private fun TdSectionLabel(text: String) {
 @Composable
 private fun TdMetaRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, fontSize = 14.sp, color = TdTextMuted, modifier = Modifier.width(100.dp))
@@ -356,32 +406,117 @@ private fun TdMetaRow(label: String, value: String) {
     }
 }
 
+// ── Attachment item (with image preview) ─────────────────────────────────────
 @Composable
-private fun TdAttachmentItem(attachment: AttachmentModel) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(TdGray, RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) {
+    val isImage = isImageMime(attachment.mimeType) || isImageByName(attachment.fileName)
+    var imageBitmap  by remember(attachment.id) { mutableStateOf<ImageBitmap?>(null) }
+    var imageLoading by remember(attachment.id) { mutableStateOf(false) }
+
+    // Download and decode image bytes once per attachment
+    LaunchedEffect(attachment.id) {
+        if (!isImage) return@LaunchedEffect
+        imageLoading = true
+        repo.downloadAttachment(attachment.taskId, attachment.id)
+            .getOrNull()
+            ?.let { bytes -> imageBitmap = bytes.decodeImageOrNull() }
+        imageLoading = false
+    }
+
+    Card(
+        shape     = RoundedCornerShape(10.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors    = CardDefaults.cardColors(containerColor = Color.White),
+        modifier  = Modifier.fillMaxWidth()
     ) {
-        Text("📎", fontSize = 18.sp)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                attachment.fileName,
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color      = TdTextPri,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis
-            )
-            Text(
-                "${formatFileSize(attachment.fileSize)} · ${formatEpoch(attachment.uploadedAt)}",
-                fontSize = 12.sp,
-                color    = TdTextMuted
-            )
+        if (isImage) {
+            Column {
+                // Image preview area
+                Box(
+                    modifier         = Modifier.fillMaxWidth().height(200.dp).background(TdGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        imageLoading -> CircularProgressIndicator(
+                            modifier    = Modifier.size(28.dp),
+                            color       = TdBlue,
+                            strokeWidth = 2.dp
+                        )
+                        imageBitmap != null -> Image(
+                            painter            = remember(imageBitmap) { BitmapPainter(imageBitmap!!) },
+                            contentDescription = attachment.fileName,
+                            modifier           = Modifier.fillMaxSize(),
+                            contentScale       = ContentScale.Crop
+                        )
+                        else -> Text("🖼", fontSize = 36.sp)
+                    }
+                }
+                // File info below image
+                Row(
+                    modifier              = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            attachment.fileName,
+                            fontSize   = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color      = TdTextPri,
+                            maxLines   = 1,
+                            overflow   = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            "${formatFileSize(attachment.fileSize)} · ${formatEpoch(attachment.uploadedAt)}",
+                            fontSize = 11.sp,
+                            color    = TdTextMuted
+                        )
+                    }
+                }
+            }
+        } else {
+            // Non-image file: compact row
+            Row(
+                modifier              = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier         = Modifier.size(40.dp).background(TdGray, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(fileTypeEmoji(attachment.fileName), fontSize = 20.sp)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        attachment.fileName,
+                        fontSize   = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color      = TdTextPri,
+                        maxLines   = 1,
+                        overflow   = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${formatFileSize(attachment.fileSize)} · ${formatEpoch(attachment.uploadedAt)}",
+                        fontSize = 12.sp,
+                        color    = TdTextMuted
+                    )
+                }
+            }
         }
+    }
+}
+
+private fun fileTypeEmoji(fileName: String): String {
+    val ext = fileName.substringAfterLast('.', "").lowercase()
+    return when (ext) {
+        "pdf"               -> "📄"
+        "doc", "docx"       -> "📝"
+        "xls", "xlsx"       -> "📊"
+        "zip", "rar", "7z"  -> "🗜"
+        "mp4", "mov", "avi" -> "🎬"
+        "mp3", "wav", "ogg" -> "🎵"
+        else                -> "📎"
     }
 }
 
@@ -398,7 +533,6 @@ private fun TdCommentPanel(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.background(Color.White)) {
-        // Header
         Row(
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -416,17 +550,11 @@ private fun TdCommentPanel(
                     .background(TdGray, RoundedCornerShape(10.dp))
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
-                Text(
-                    comments.size.toString(),
-                    fontSize   = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = TdTextMuted
-                )
+                Text(comments.size.toString(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TdTextMuted)
             }
         }
         HorizontalDivider(color = TdBorder)
 
-        // Scrollable comment list
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -439,29 +567,18 @@ private fun TdCommentPanel(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "No comments yet. Be the first!",
-                        fontSize = 14.sp,
-                        color    = TdTextMuted
-                    )
+                    Text("No comments yet. Be the first!", fontSize = 14.sp, color = TdTextMuted)
                 }
             } else {
                 comments.forEach { c ->
-                    TdCommentItem(
-                        comment     = c,
-                        isDeleting  = c.id in deletingIds,
-                        onDelete    = { onDeleteComment(c.id) }
-                    )
+                    TdCommentItem(comment = c, isDeleting = c.id in deletingIds, onDelete = { onDeleteComment(c.id) })
                 }
             }
         }
 
-        // Input row
         HorizontalDivider(color = TdBorder)
         Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -482,19 +599,11 @@ private fun TdCommentPanel(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(
-                            if (canSend) TdBlue else TdGray,
-                            RoundedCornerShape(10.dp)
-                        )
+                        .background(if (canSend) TdBlue else TdGray, RoundedCornerShape(10.dp))
                         .clickable(enabled = canSend, onClick = onSend),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "→",
-                        fontSize   = 18.sp,
-                        color      = if (canSend) Color.White else TdTextMuted,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("→", fontSize = 18.sp, color = if (canSend) Color.White else TdTextMuted, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -502,27 +611,18 @@ private fun TdCommentPanel(
 }
 
 @Composable
-private fun TdCommentItem(
-    comment: CommentModel,
-    isDeleting: Boolean,
-    onDelete: () -> Unit
-) {
+private fun TdCommentItem(comment: CommentModel, isDeleting: Boolean, onDelete: () -> Unit) {
     val color = authorColor(comment.authorId)
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
+        modifier              = Modifier.fillMaxWidth(),
+        verticalAlignment     = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
-            modifier = Modifier.size(34.dp).background(color, CircleShape),
+            modifier         = Modifier.size(34.dp).background(color, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                commentInitials(comment.authorUsername),
-                color      = Color.White,
-                fontSize   = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(commentInitials(comment.authorUsername), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -530,23 +630,12 @@ private fun TdCommentItem(
                 verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    comment.authorUsername,
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = TdTextPri,
-                    modifier   = Modifier.weight(1f)
-                )
+                Text(comment.authorUsername, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TdTextPri, modifier = Modifier.weight(1f))
                 Text(formatEpoch(comment.createdAt), fontSize = 12.sp, color = TdTextMuted)
                 if (isDeleting) {
                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp, color = TdTextMuted)
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable(onClick = onDelete),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.size(22.dp).clickable(onClick = onDelete), contentAlignment = Alignment.Center) {
                         Text("🗑", fontSize = 12.sp)
                     }
                 }

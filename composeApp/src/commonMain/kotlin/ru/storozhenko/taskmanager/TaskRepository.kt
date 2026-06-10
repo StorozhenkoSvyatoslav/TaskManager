@@ -63,6 +63,23 @@ class TaskRepository(private val token: String) {
         Unit
     }
 
+    suspend fun downloadAttachment(taskId: Int, attachmentId: Int): Result<ByteArray> = runCatching {
+        client.get("$API_BASE/tasks/$taskId/attachments/$attachmentId/download") { auth() }.body()
+    }
+
+    suspend fun uploadAttachment(taskId: Int, file: PickedFile): Result<Unit> = runCatching {
+        client.post("$API_BASE/tasks/$taskId/attachments") {
+            auth()
+            setBody(MultiPartFormDataContent(formData {
+                append("file", file.bytes, Headers.build {
+                    file.mimeType?.let { append(HttpHeaders.ContentType, it) }
+                    append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
+                })
+            }))
+        }
+        Unit
+    }
+
     suspend fun deleteTask(taskId: Int): Result<Unit> = runCatching {
         client.delete("$API_BASE/tasks/$taskId") { auth() }
         Unit
