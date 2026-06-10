@@ -17,11 +17,13 @@ import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import ru.storozhenko.taskmanager.database.DatabaseFactory
+import ru.storozhenko.taskmanager.routing.adminRouting
 import ru.storozhenko.taskmanager.routing.attachmentRouting
 import ru.storozhenko.taskmanager.routing.authRouting
 import ru.storozhenko.taskmanager.routing.commentRouting
 import ru.storozhenko.taskmanager.routing.statsRouting
 import ru.storozhenko.taskmanager.routing.taskRouting
+import ru.storozhenko.taskmanager.routing.userRouting
 import ru.storozhenko.taskmanager.routing.workspaceRouting
 
 //надо будет вынести в файлы конфигурации
@@ -101,6 +103,8 @@ fun Application.module() {
             commentRouting()
             attachmentRouting()
             statsRouting()
+            userRouting()
+            adminRouting()
         }
     }
 }

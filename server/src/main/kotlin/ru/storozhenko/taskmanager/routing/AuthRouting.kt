@@ -20,9 +20,12 @@ import io.ktor.server.routing.*
 import ru.storozhenko.taskmanager.JWT_AUDIENCE
 import ru.storozhenko.taskmanager.JWT_ISSUER
 import ru.storozhenko.taskmanager.JWT_SECRET
+import ru.storozhenko.taskmanager.database.tables.Users
 import ru.storozhenko.taskmanager.models.LoginRequest
 import ru.storozhenko.taskmanager.repository.UserRepository
 import java.util.Date
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Route.authRouting() {
     val userRepository = UserRepository()
@@ -39,6 +42,14 @@ fun Route.authRouting() {
             val userData = userRepository.verifyUser(request)
 
             if (userData != null) {
+                val isBanned = transaction {
+                    Users.select { Users.id eq userData.first }.singleOrNull()?.get(Users.isBanned) ?: false
+                }
+                if (isBanned) {
+                    call.respond(HttpStatusCode.Forbidden, AuthResponse("", "Your account has been banned"))
+                    return@post
+                }
+
                 val token = JWT.create()
                     .withAudience(JWT_AUDIENCE)
                     .withIssuer(JWT_ISSUER)

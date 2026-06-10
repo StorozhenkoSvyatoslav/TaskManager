@@ -24,7 +24,7 @@ object DatabaseFactory {
             password = dbPassword
         )
         transaction(database) {
-            SchemaUtils.create(Users, Tasks, Workspaces, WorkspaceMembers, TaskComments, TaskAttachments)
+            SchemaUtils.createMissingTablesAndColumns(Users, Tasks, Workspaces, WorkspaceMembers, TaskComments, TaskAttachments)
         }
     }
 }

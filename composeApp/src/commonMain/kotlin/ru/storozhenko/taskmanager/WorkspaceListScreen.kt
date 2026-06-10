@@ -43,7 +43,9 @@ private fun wsAvatarColor(name: String) =
 @Composable
 fun WorkspaceListScreen(
     token: String,
+    systemRole: String = "USER",
     onNavigateToWorkspace: (WorkspaceModel) -> Unit,
+    onNavigateToAdmin: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val repo = remember(token) { WorkspaceRepository(token) }
@@ -83,7 +85,11 @@ fun WorkspaceListScreen(
                 .widthIn(max = 1920.dp)
                 .fillMaxSize()
         ) {
-            WlHeaderBar(onLogout = onLogout)
+            WlHeaderBar(
+                isAdmin           = systemRole == "ADMIN",
+                onNavigateToAdmin = onNavigateToAdmin,
+                onLogout          = onLogout
+            )
 
             Surface(color = Color.White, modifier = Modifier.fillMaxWidth()) {
                 Column {
@@ -288,7 +294,11 @@ fun WorkspaceListScreen(
 }
 
 @Composable
-private fun WlHeaderBar(onLogout: () -> Unit) {
+private fun WlHeaderBar(
+    isAdmin: Boolean,
+    onNavigateToAdmin: () -> Unit,
+    onLogout: () -> Unit
+) {
     Column {
         Row(
             modifier = Modifier
@@ -313,6 +323,18 @@ private fun WlHeaderBar(onLogout: () -> Unit) {
                 color = WlTextPrimary
             )
             Spacer(Modifier.weight(1f))
+            if (isAdmin) {
+                Button(
+                    onClick = onNavigateToAdmin,
+                    modifier = Modifier,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text("Admin Panel", fontSize = 13.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+            }
             OutlinedButton(
                 onClick = onLogout,
                 modifier = Modifier,

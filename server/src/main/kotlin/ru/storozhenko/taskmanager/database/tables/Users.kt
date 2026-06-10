@@ -8,5 +8,6 @@ object Users : Table("users") {
     val email = varchar("email", 100).uniqueIndex()
     val passwordHash = varchar("password_hash", 255)
     val role = varchar("role", 20).default("USER")
+    val isBanned = bool("is_banned").default(false)
     override val primaryKey = PrimaryKey(id)
 }
