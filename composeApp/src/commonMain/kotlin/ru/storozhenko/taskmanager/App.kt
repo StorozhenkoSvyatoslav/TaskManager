@@ -9,6 +9,7 @@ sealed class Screen {
     object WorkspaceList : Screen()
     data class WorkspaceDetail(val workspace: WorkspaceModel) : Screen()
     data class TaskDetail(val task: TaskModel, val workspace: WorkspaceModel) : Screen()
+    data class CreateTask(val workspace: WorkspaceModel) : Screen()
 }
 
 @Composable
@@ -39,13 +40,20 @@ fun App() {
                     workspace        = s.workspace,
                     token            = token!!,
                     onBack           = { screen = Screen.WorkspaceList },
-                    onNavigateToTask = { task -> screen = Screen.TaskDetail(task, s.workspace) }
+                    onNavigateToTask = { task -> screen = Screen.TaskDetail(task, s.workspace) },
+                    onCreateTask     = { screen = Screen.CreateTask(s.workspace) }
                 )
                 is Screen.TaskDetail -> TaskDetailScreen(
                     task      = s.task,
                     workspace = s.workspace,
                     token     = token!!,
                     onBack    = { screen = Screen.WorkspaceDetail(s.workspace) }
+                )
+                is Screen.CreateTask -> TaskCreateEditScreen(
+                    workspace     = s.workspace,
+                    token         = token!!,
+                    onBack        = { screen = Screen.WorkspaceDetail(s.workspace) },
+                    onTaskCreated = { screen = Screen.WorkspaceDetail(s.workspace) }
                 )
             }
         }

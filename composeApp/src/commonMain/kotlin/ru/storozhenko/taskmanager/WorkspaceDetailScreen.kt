@@ -82,7 +82,8 @@ fun WorkspaceDetailScreen(
     workspace: WorkspaceModel,
     token: String,
     onBack: () -> Unit,
-    onNavigateToTask: (TaskModel) -> Unit = {}
+    onNavigateToTask: (TaskModel) -> Unit = {},
+    onCreateTask: () -> Unit = {}
 ) {
     val repo = remember(token) { TaskRepository(token) }
 
@@ -120,12 +121,13 @@ fun WorkspaceDetailScreen(
                     onBack         = onBack
                 )
                 WdToolbar(
-                    searchQuery     = searchQuery,
-                    onSearchChange  = { searchQuery = it },
-                    priorityFilter  = priorityFilter,
+                    searchQuery      = searchQuery,
+                    onSearchChange   = { searchQuery = it },
+                    priorityFilter   = priorityFilter,
                     onPriorityChange = { priorityFilter = it },
-                    sortBy          = sortBy,
-                    onSortChange    = { sortBy = it }
+                    sortBy           = sortBy,
+                    onSortChange     = { sortBy = it },
+                    onCreateTask     = onCreateTask
                 )
                 WdKanbanBoard(
                     tasks        = filteredTasks,
@@ -302,7 +304,8 @@ private fun WdToolbar(
     priorityFilter: String,
     onPriorityChange: (String) -> Unit,
     sortBy: String,
-    onSortChange: (String) -> Unit
+    onSortChange: (String) -> Unit,
+    onCreateTask: () -> Unit = {}
 ) {
     var priorityExpanded by remember { mutableStateOf(false) }
     var sortExpanded     by remember { mutableStateOf(false) }
@@ -378,11 +381,10 @@ private fun WdToolbar(
             Spacer(Modifier.weight(1f))
 
             Button(
-                onClick         = {},
-                modifier        = Modifier,
-                colors          = ButtonDefaults.buttonColors(containerColor = WdBlue),
-                shape           = RoundedCornerShape(8.dp),
-                contentPadding  = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                onClick        = onCreateTask,
+                colors         = ButtonDefaults.buttonColors(containerColor = WdBlue),
+                shape          = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
             ) {
                 Text("+ Add Task", fontSize = 15.sp, fontWeight = FontWeight.Medium)
             }

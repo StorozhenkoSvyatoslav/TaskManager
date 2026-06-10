@@ -2,9 +2,13 @@ package ru.storozhenko.taskmanager
 
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
 import io.ktor.http.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import ru.storozhenko.taskmanager.models.CommentModel
 import ru.storozhenko.taskmanager.models.CreateCommentRequest
+import ru.storozhenko.taskmanager.models.CreateTaskRequest
 import ru.storozhenko.taskmanager.models.TaskDetailModel
 import ru.storozhenko.taskmanager.models.TaskModel
 import ru.storozhenko.taskmanager.models.WorkspaceStats
@@ -40,6 +44,18 @@ class TaskRepository(private val token: String) {
 
     suspend fun deleteComment(taskId: Int, commentId: Int): Result<Unit> = runCatching {
         client.delete("$API_BASE/tasks/$taskId/comments/$commentId") { auth() }
+        Unit
+    }
+
+    suspend fun createTask(request: CreateTaskRequest): Result<Unit> = runCatching {
+        client.post("$API_BASE/tasks") {
+            auth()
+            setBody(MultiPartFormDataContent(
+                formData {
+                    append("task", Json.encodeToString(request))
+                }
+            ))
+        }
         Unit
     }
 }
