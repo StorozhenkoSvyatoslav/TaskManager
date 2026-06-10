@@ -14,6 +14,7 @@ import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
 import ru.storozhenko.taskmanager.database.tables.Workspaces
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.JoinWorkspaceRequest
+import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 import java.time.ZoneOffset
@@ -256,6 +257,45 @@ fun Route.workspaceRouting() {
             } else {
                 call.respond(HttpStatusCode.OK, "Member removed")
             }
+        }
+
+        // Обновить название/описание пространства (только OWNER)
+        put("/{id}") {
+            val workspaceId = call.parameters["id"]?.toIntOrNull()
+            if (workspaceId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid workspace id")
+                return@put
+            }
+            val request = call.receiveNullable<UpdateWorkspaceRequest>()
+            if (request == null || request.name.isBlank()) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid request body")
+                return@put
+            }
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()
+            if (userId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@put
+            }
+            val isOwner = transaction {
+                WorkspaceMembers.selectAll()
+                    .where {
+                        (WorkspaceMembers.workspaceId eq workspaceId) and
+                        (WorkspaceMembers.userId eq userId) and
+                        (WorkspaceMembers.role eq "OWNER")
+                    }.any()
+            }
+            if (!isOwner) {
+                call.respond(HttpStatusCode.Forbidden, "Only workspace owner can edit")
+                return@put
+            }
+            transaction {
+                Workspaces.update({ Workspaces.id eq workspaceId }) {
+                    it[name] = request.name
+                    it[description] = request.description
+                }
+            }
+            call.respond(HttpStatusCode.OK, "Workspace updated")
         }
 
         // Вступить в приватное пространство по inviteCode

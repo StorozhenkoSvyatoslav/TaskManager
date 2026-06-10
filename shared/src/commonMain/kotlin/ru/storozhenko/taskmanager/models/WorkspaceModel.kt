@@ -25,3 +25,9 @@ data class CreateWorkspaceRequest(
 data class JoinWorkspaceRequest(
     val inviteCode: String
 )
+
+@Serializable
+data class UpdateWorkspaceRequest(
+    val name: String,
+    val description: String?
+)

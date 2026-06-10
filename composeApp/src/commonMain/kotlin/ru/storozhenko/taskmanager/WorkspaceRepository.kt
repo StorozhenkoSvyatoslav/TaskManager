@@ -4,6 +4,7 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
+import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 
@@ -43,6 +44,15 @@ class WorkspaceRepository(private val token: String) {
 
     suspend fun removeMember(workspaceId: Int, userId: Int): Result<Unit> = runCatching {
         client.delete("$API_BASE/workspaces/$workspaceId/members/$userId") { auth() }
+        Unit
+    }
+
+    suspend fun updateWorkspace(workspaceId: Int, request: UpdateWorkspaceRequest): Result<Unit> = runCatching {
+        client.put("$API_BASE/workspaces/$workspaceId") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
         Unit
     }
 }

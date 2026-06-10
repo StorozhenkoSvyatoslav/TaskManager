@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import ru.storozhenko.taskmanager.models.TaskModel
 import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
+import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceStats
 
 // ── Colors ────────────────────────────────────────────────────────────────────
@@ -104,15 +105,18 @@ fun WorkspaceDetailScreen(
     var searchQuery    by remember { mutableStateOf("") }
     var priorityFilter by remember { mutableStateOf("All") }
     var sortBy         by remember { mutableStateOf("Priority") }
-    var showHeaderMenu by remember { mutableStateOf(false) }
+    var currentWorkspace by remember { mutableStateOf(workspace) }
+    var showInviteDialog by remember { mutableStateOf(false) }
+    var showEditDialog   by remember { mutableStateOf(false) }
+    var showHeaderMenu   by remember { mutableStateOf(false) }
 
-    val isOwner = currentUserId != 0 && currentUserId == workspace.ownerId
+    val isOwner = currentUserId != 0 && currentUserId == currentWorkspace.ownerId
 
-    LaunchedEffect(workspace.id, refreshKey) {
+    LaunchedEffect(currentWorkspace.id, refreshKey) {
         isLoading = true
-        tasks   = taskRepo.getTasksByWorkspace(workspace.id).getOrElse { emptyList() }
-        stats   = taskRepo.getWorkspaceStats(workspace.id).getOrNull()
-        members = workspaceRepo.getMembers(workspace.id).getOrElse { emptyList() }
+        tasks   = taskRepo.getTasksByWorkspace(currentWorkspace.id).getOrElse { emptyList() }
+        stats   = taskRepo.getWorkspaceStats(currentWorkspace.id).getOrNull()
+        members = workspaceRepo.getMembers(currentWorkspace.id).getOrElse { emptyList() }
         isLoading = false
     }
 
@@ -138,12 +142,14 @@ fun WorkspaceDetailScreen(
             // ── Main content ──────────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 WdHeaderBar(
-                    workspace      = workspace,
-                    members        = members,
-                    showMenu       = showHeaderMenu,
-                    onMenuToggle   = { showHeaderMenu = !showHeaderMenu },
-                    onMenuDismiss  = { showHeaderMenu = false },
-                    onBack         = onBack
+                    workspace       = currentWorkspace,
+                    members         = members,
+                    showMenu        = showHeaderMenu,
+                    onMenuToggle    = { showHeaderMenu = !showHeaderMenu },
+                    onMenuDismiss   = { showHeaderMenu = false },
+                    onBack          = onBack,
+                    onInvite        = { showInviteDialog = true },
+                    onEditWorkspace = { if (isOwner) showEditDialog = true }
                 )
                 WdToolbar(
                     searchQuery      = searchQuery,
@@ -174,7 +180,7 @@ fun WorkspaceDetailScreen(
             Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(WdBorder))
             // ── Side panel ────────────────────────────────────────────────────
             WdSidePanel(
-                workspace     = workspace,
+                workspace     = currentWorkspace,
                 filteredTasks = filteredTasks,
                 stats         = stats,
                 members       = members,
@@ -182,13 +188,38 @@ fun WorkspaceDetailScreen(
                 currentUserId = currentUserId,
                 onRemoveMember = { userId ->
                     scope.launch {
-                        workspaceRepo.removeMember(workspace.id, userId)
+                        workspaceRepo.removeMember(currentWorkspace.id, userId)
                         refreshKey++
                     }
                 },
                 modifier      = Modifier.width(340.dp).fillMaxHeight()
             )
         }
+    }
+
+    if (showInviteDialog) {
+        WdInviteCodeDialog(
+            workspace = currentWorkspace,
+            isOwner   = isOwner,
+            onDismiss = { showInviteDialog = false }
+        )
+    }
+    if (showEditDialog && isOwner) {
+        WdEditWorkspaceDialog(
+            workspace = currentWorkspace,
+            onDismiss = { showEditDialog = false },
+            onSave    = { name, description ->
+                scope.launch {
+                    workspaceRepo.updateWorkspace(
+                        currentWorkspace.id,
+                        UpdateWorkspaceRequest(name, description)
+                    ).onSuccess {
+                        currentWorkspace = currentWorkspace.copy(name = name, description = description)
+                        showEditDialog = false
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -200,7 +231,9 @@ private fun WdHeaderBar(
     showMenu: Boolean,
     onMenuToggle: () -> Unit,
     onMenuDismiss: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onInvite: () -> Unit = {},
+    onEditWorkspace: () -> Unit = {}
 ) {
     Column {
         Row(
@@ -263,7 +296,7 @@ private fun WdHeaderBar(
                     modifier = Modifier
                         .size(36.dp)
                         .background(WdGray, CircleShape)
-                        .clickable {},
+                        .clickable(onClick = onInvite),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("+", fontSize = 20.sp, color = WdTextMuted, fontWeight = FontWeight.Bold)
@@ -281,16 +314,12 @@ private fun WdHeaderBar(
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = onMenuDismiss) {
                         DropdownMenuItem(
-                            text = { Text("✏  Edit Workspace") },
-                            onClick = onMenuDismiss
+                            text    = { Text("✏  Edit Workspace") },
+                            onClick = { onMenuDismiss(); onEditWorkspace() }
                         )
                         DropdownMenuItem(
-                            text = { Text("↗  Share") },
-                            onClick = onMenuDismiss
-                        )
-                        DropdownMenuItem(
-                            text = { Text("⚙  Settings") },
-                            onClick = onMenuDismiss
+                            text    = { Text("↗  Share / Invite") },
+                            onClick = { onMenuDismiss(); onInvite() }
                         )
                     }
                 }
@@ -823,4 +852,116 @@ private fun WdSidePanel(
             }
         }
     }
+}
+
+// ── Invite Code Dialog ────────────────────────────────────────────────────────
+@Composable
+private fun WdInviteCodeDialog(
+    workspace: WorkspaceModel,
+    isOwner: Boolean,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Invite Members", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                when {
+                    workspace.visibility == "PUBLIC" ->
+                        Text(
+                            "This workspace is public — anyone can find and join it from the workspace list.",
+                            fontSize = 14.sp,
+                            color    = WdTextMuted
+                        )
+                    isOwner && workspace.inviteCode != null -> {
+                        val code = workspace.inviteCode!!
+                        Text(
+                            "Share this invite code to add members:",
+                            fontSize = 14.sp,
+                            color    = WdTextMuted
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(WdGray, RoundedCornerShape(8.dp))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                code,
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = 20.sp,
+                                color      = WdTextPri
+                            )
+                        }
+                    }
+                    else ->
+                        Text(
+                            "Contact the workspace owner to receive an invite code.",
+                            fontSize = 14.sp,
+                            color    = WdTextMuted
+                        )
+                }
+            }
+        },
+        confirmButton = {
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+// ── Edit Workspace Dialog ─────────────────────────────────────────────────────
+@Composable
+private fun WdEditWorkspaceDialog(
+    workspace: WorkspaceModel,
+    onDismiss: () -> Unit,
+    onSave: (name: String, description: String?) -> Unit
+) {
+    var name        by remember { mutableStateOf(workspace.name) }
+    var description by remember { mutableStateOf(workspace.description ?: "") }
+    var nameError   by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Workspace", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value          = name,
+                    onValueChange  = { name = it; nameError = false },
+                    label          = { Text("Workspace Name") },
+                    singleLine     = true,
+                    isError        = nameError,
+                    supportingText = if (nameError) ({ Text("Name is required", color = WdRed) }) else null,
+                    modifier       = Modifier.fillMaxWidth(),
+                    shape          = RoundedCornerShape(8.dp)
+                )
+                OutlinedTextField(
+                    value         = description,
+                    onValueChange = { description = it },
+                    label         = { Text("Description") },
+                    minLines      = 2,
+                    modifier      = Modifier.fillMaxWidth(),
+                    shape         = RoundedCornerShape(8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isBlank()) { nameError = true; return@Button }
+                    onSave(name.trim(), description.trim().ifEmpty { null })
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = WdBlue),
+                shape  = RoundedCornerShape(8.dp)
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                Text("Cancel")
+            }
+        }
+    )
 }
