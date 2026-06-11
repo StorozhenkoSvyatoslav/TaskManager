@@ -4,6 +4,7 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
+import ru.storozhenko.taskmanager.models.InviteCodeResponse
 import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
@@ -54,5 +55,11 @@ class WorkspaceRepository(private val token: String) {
             setBody(request)
         }
         Unit
+    }
+
+    suspend fun generateInviteCode(workspaceId: Int, force: Boolean = false): Result<InviteCodeResponse> = runCatching {
+        val url = if (force) "$API_BASE/workspaces/$workspaceId/invite?force=true"
+                  else       "$API_BASE/workspaces/$workspaceId/invite"
+        client.post(url) { auth() }.body()
     }
 }

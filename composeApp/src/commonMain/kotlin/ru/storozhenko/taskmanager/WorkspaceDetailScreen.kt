@@ -25,8 +25,10 @@ import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceStats
-import kotlinx.coroutines.launch
 import kotlin.time.Clock
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.material3.ExperimentalMaterial3Api
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 private val WdPageBg    = Color(0xFFF8FAFC)
@@ -233,9 +235,10 @@ fun WorkspaceDetailScreen(
 
     if (showInviteDialog) {
         WdInviteCodeDialog(
-            workspace = currentWorkspace,
-            isOwner   = isOwner,
-            onDismiss = { showInviteDialog = false }
+            workspace      = currentWorkspace,
+            isOwner        = isOwner,
+            workspaceRepo  = workspaceRepo,
+            onDismiss      = { showInviteDialog = false }
         )
     }
     if (showEditDialog && isOwner) {
@@ -894,12 +897,47 @@ private fun WdSidePanel(
 }
 
 // ── Invite Code Dialog ────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WdInviteCodeDialog(
     workspace: WorkspaceModel,
     isOwner: Boolean,
+    workspaceRepo: WorkspaceRepository,
     onDismiss: () -> Unit
 ) {
+    var inviteCode  by remember { mutableStateOf<String?>(null) }
+    var expiresAt   by remember { mutableStateOf<Long?>(null) }
+    var isLoading   by remember { mutableStateOf(false) }
+    var error       by remember { mutableStateOf<String?>(null) }
+    val scope       = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+
+    fun loadCode(force: Boolean = false) {
+        scope.launch {
+            isLoading = true
+            error = null
+            val result = workspaceRepo.generateInviteCode(workspace.id, force)
+            result.onSuccess {
+                inviteCode = it.code
+                expiresAt  = it.expiresAt
+            }.onFailure {
+                error = it.message ?: "Failed to generate invite code"
+            }
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(workspace.id) {
+        if (isOwner && workspace.visibility != "PUBLIC") loadCode()
+    }
+
+    fun minutesLeft(): Long {
+        val exp = expiresAt ?: return 0L
+        val nowSec = Clock.System.now().epochSeconds
+        return maxOf(0L, (exp - nowSec) / 60L)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Invite Members", fontWeight = FontWeight.Bold) },
@@ -912,8 +950,13 @@ private fun WdInviteCodeDialog(
                             fontSize = 14.sp,
                             color    = WdTextMuted
                         )
-                    isOwner && workspace.inviteCode != null -> {
-                        val code = workspace.inviteCode!!
+                    isOwner && isLoading ->
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(32.dp))
+                        }
+                    isOwner && error != null ->
+                        Text(error!!, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                    isOwner && inviteCode != null -> {
                         Text(
                             "Share this invite code to add members:",
                             fontSize = 14.sp,
@@ -927,12 +970,20 @@ private fun WdInviteCodeDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                code,
+                                inviteCode!!,
                                 fontWeight = FontWeight.Bold,
-                                fontSize   = 20.sp,
+                                fontSize   = 24.sp,
                                 color      = WdTextPri
                             )
                         }
+                        if (copied) {
+                            Text("Copied!", fontSize = 12.sp, color = WdGreen)
+                        }
+                        Text(
+                            "Expires in ${minutesLeft()} min",
+                            fontSize = 12.sp,
+                            color    = WdTextMuted
+                        )
                     }
                     else ->
                         Text(
@@ -944,8 +995,41 @@ private fun WdInviteCodeDialog(
             }
         },
         confirmButton = {
-            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
-                Text("Close")
+            if (isOwner && inviteCode != null) {
+                Button(
+                    onClick = {
+                        inviteCode?.let {
+                            clipboardManager.setText(AnnotatedString(it))
+                            copied = true
+                            scope.launch {
+                                kotlinx.coroutines.delay(2000L)
+                                copied = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = WdBlue),
+                    shape  = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Copy")
+                }
+            } else {
+                OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                    Text("Close")
+                }
+            }
+        },
+        dismissButton = {
+            Row {
+                if (isOwner && workspace.visibility != "PUBLIC" && !isLoading) {
+                    OutlinedButton(
+                        onClick = { loadCode(force = true) },
+                        shape   = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) { Text("New Code") }
+                }
+                OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                    Text("Close")
+                }
             }
         }
     )
@@ -956,49 +1040,50 @@ private fun WdInviteCodeDialog(
 private fun WdEditWorkspaceDialog(
     workspace: WorkspaceModel,
     onDismiss: () -> Unit,
-    onSave: (name: String, description: String?) -> Unit
+    onSave: (String, String) -> Unit
 ) {
-    var name        by remember { mutableStateOf(workspace.name) }
+    var name by remember { mutableStateOf(workspace.name) }
     var description by remember { mutableStateOf(workspace.description ?: "") }
-    var nameError   by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit Workspace", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
-                    value          = name,
-                    onValueChange  = { name = it; nameError = false },
-                    label          = { Text("Workspace Name") },
-                    singleLine     = true,
-                    isError        = nameError,
-                    supportingText = if (nameError) ({ Text("Name is required", color = WdRed) }) else null,
-                    modifier       = Modifier.fillMaxWidth(),
-                    shape          = RoundedCornerShape(8.dp)
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Workspace Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
                 )
                 OutlinedTextField(
-                    value         = description,
+                    value = description,
                     onValueChange = { description = it },
-                    label         = { Text("Description") },
-                    minLines      = 2,
-                    modifier      = Modifier.fillMaxWidth(),
-                    shape         = RoundedCornerShape(8.dp)
+                    label = { Text("Description") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 80.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    maxLines = 3
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    if (name.isBlank()) { nameError = true; return@Button }
-                    onSave(name.trim(), description.trim().ifEmpty { null })
-                },
+                onClick = { onSave(name, description) },
                 colors = ButtonDefaults.buttonColors(containerColor = WdBlue),
-                shape  = RoundedCornerShape(8.dp)
-            ) { Text("Save") }
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Save")
+            }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(8.dp)
+            ) {
                 Text("Cancel")
             }
         }

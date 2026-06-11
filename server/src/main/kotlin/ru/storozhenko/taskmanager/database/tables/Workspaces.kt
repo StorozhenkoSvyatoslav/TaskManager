@@ -10,6 +10,7 @@ object Workspaces : Table("workspaces") {
     val description = text("description").nullable()
     val visibility = varchar("visibility", 50) // "PUBLIC" или "PRIVATE"
     val inviteCode = varchar("invite_code", 255).nullable()
+    val inviteCodeExpiresAt = datetime("invite_code_expires_at").nullable()
 
     // Владелец пространства
     val ownerId = integer("owner_id").references(Users.id)

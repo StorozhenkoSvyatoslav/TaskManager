@@ -31,3 +31,9 @@ data class UpdateWorkspaceRequest(
     val name: String,
     val description: String?
 )
+
+@Serializable
+data class InviteCodeResponse(
+    val code: String,
+    val expiresAt: Long // epoch seconds
+)

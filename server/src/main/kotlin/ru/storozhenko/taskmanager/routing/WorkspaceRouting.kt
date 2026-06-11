@@ -13,11 +13,14 @@ import ru.storozhenko.taskmanager.database.tables.Users
 import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
 import ru.storozhenko.taskmanager.database.tables.Workspaces
 import ru.storozhenko.taskmanager.models.CreateWorkspaceRequest
+import ru.storozhenko.taskmanager.models.InviteCodeResponse
 import ru.storozhenko.taskmanager.models.JoinWorkspaceRequest
 import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
+import java.time.LocalDateTime
 import java.time.ZoneOffset
+import java.util.UUID
 
 fun Route.workspaceRouting() {
     route("/workspaces") {
@@ -156,63 +159,66 @@ fun Route.workspaceRouting() {
             call.respond(HttpStatusCode.OK, members)
         }
 
-        // Получить inviteCode (только владелец/OWNER)
-        get("/{id}/inviteCode") {
+        // Получить/сгенерировать invite code (только OWNER приватного workspace)
+        // Возвращает действующий код если он ещё не истёк, иначе генерирует новый.
+        // Параметр ?force=true принудительно генерирует новый код.
+        post("/{id}/invite") {
             val workspaceId = call.parameters["id"]?.toIntOrNull()
             if (workspaceId == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid workspace id")
-                return@get
+                return@post
             }
+            val force = call.request.queryParameters["force"] == "true"
 
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.payload?.getClaim("id")?.asInt()
             if (userId == null) {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid user")
-                return@get
+                return@post
             }
+
+            val now = LocalDateTime.now(ZoneOffset.UTC)
 
             val result = transaction {
-                val workspaceRow = Workspaces
-                    .select(Workspaces.ownerId, Workspaces.inviteCode)
+                val row = Workspaces
+                    .select(Workspaces.ownerId, Workspaces.visibility, Workspaces.inviteCode, Workspaces.inviteCodeExpiresAt)
                     .where { Workspaces.id eq workspaceId }
                     .limit(1)
-                    .firstOrNull()
-                    ?: return@transaction Pair(null, null)
+                    .firstOrNull() ?: return@transaction null
 
-                val ownerId = workspaceRow[Workspaces.ownerId]
-                val inviteCode = workspaceRow[Workspaces.inviteCode]
+                if (row[Workspaces.ownerId] != userId) return@transaction null
 
-                // 1) прямой владелец по workspaces.owner_id
-                if (ownerId == userId) return@transaction Pair(true, inviteCode)
+                val existingCode    = row[Workspaces.inviteCode]
+                val existingExpiry  = row[Workspaces.inviteCodeExpiresAt]
+                val isStillValid    = !force && existingCode != null && existingExpiry != null && existingExpiry.isAfter(now)
 
-                // 2) или роль OWNER в членстве (на случай, если данные owner_id/членства разъехались)
-                val isOwnerMember = WorkspaceMembers
-                    .selectAll()
-                    .where {
-                        (WorkspaceMembers.workspaceId eq workspaceId) and
-                            (WorkspaceMembers.userId eq userId) and
-                            (WorkspaceMembers.role eq "OWNER")
-                    }
-                    .limit(1)
-                    .any()
+                if (isStillValid && existingCode != null && existingExpiry != null) {
+                    return@transaction InviteCodeResponse(
+                        code      = existingCode,
+                        expiresAt = existingExpiry.toEpochSecond(ZoneOffset.UTC)
+                    )
+                }
 
-                Pair(isOwnerMember, inviteCode)
+                val newCode    = UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
+                val newExpiry  = now.plusHours(1)
+
+                Workspaces.update({ Workspaces.id eq workspaceId }) {
+                    it[inviteCode]          = newCode
+                    it[inviteCodeExpiresAt] = newExpiry
+                }
+
+                InviteCodeResponse(
+                    code      = newCode,
+                    expiresAt = newExpiry.toEpochSecond(ZoneOffset.UTC)
+                )
             }
 
-            val hasAccess = result.first
-            val inviteCode = result.second
-
-            if (hasAccess == null) {
-                call.respond(HttpStatusCode.NotFound, "Workspace not found")
-                return@get
+            if (result == null) {
+                call.respond(HttpStatusCode.Forbidden, "Only workspace owner can generate invite codes")
+                return@post
             }
 
-            if (hasAccess != true) {
-                call.respond(HttpStatusCode.Forbidden, "No access")
-                return@get
-            }
-
-            call.respond(HttpStatusCode.OK, mapOf("inviteCode" to inviteCode))
+            call.respond(HttpStatusCode.OK, result)
         }
 
         // Удалить участника из пространства (только OWNER; нельзя удалить самого себя)
@@ -321,7 +327,13 @@ fun Route.workspaceRouting() {
             }
 
             if (workspace == null) {
-                call.respond(HttpStatusCode.NotFound, "Workspace not found")
+                call.respond(HttpStatusCode.NotFound, "Invite code not found or expired")
+                return@post
+            }
+
+            val expiry = workspace[Workspaces.inviteCodeExpiresAt]
+            if (expiry == null || expiry.isBefore(LocalDateTime.now(ZoneOffset.UTC))) {
+                call.respond(HttpStatusCode.Gone, "Invite code has expired")
                 return@post
             }
 
