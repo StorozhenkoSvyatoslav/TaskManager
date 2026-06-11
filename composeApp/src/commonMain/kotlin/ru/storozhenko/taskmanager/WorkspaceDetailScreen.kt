@@ -25,6 +25,8 @@ import ru.storozhenko.taskmanager.models.WorkspaceMemberModel
 import ru.storozhenko.taskmanager.models.WorkspaceModel
 import ru.storozhenko.taskmanager.models.UpdateWorkspaceRequest
 import ru.storozhenko.taskmanager.models.WorkspaceStats
+import kotlinx.coroutines.launch
+import kotlin.time.Clock
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 private val WdPageBg    = Color(0xFFF8FAFC)
@@ -65,11 +67,40 @@ private fun wdMemberInitials(username: String) =
         .joinToString("") { it[0].uppercaseChar().toString() }
         .ifEmpty { username.take(2).uppercase() }
 
-private val WD_ACTIVITY = listOf(
-    "Alex Kim completed 'Fix login bug'"            to "2 hours ago",
-    "Mike Johnson added 'Database migration'"       to "4 hours ago",
-    "Sarah Chen updated 'Design new landing page'"  to "Yesterday",
-)
+private fun wdRelativeTime(epochSeconds: Long): String {
+    val nowSec  = Clock.System.now().epochSeconds
+    val diffSec = nowSec - epochSeconds
+    return when {
+        diffSec < 60L            -> "Just now"
+        diffSec < 3600L          -> "${diffSec / 60L}m ago"
+        diffSec < 86400L         -> "${diffSec / 3600L}h ago"
+        diffSec < 86400L * 2L    -> "Yesterday"
+        diffSec < 86400L * 7L    -> "${diffSec / 86400L}d ago"
+        else                     -> "${diffSec / (86400L * 7L)}w ago"
+    }
+}
+
+private data class WdActivityEntry(val text: String, val time: String)
+
+private fun wdBuildActivity(
+    tasks: List<TaskModel>,
+    members: List<WorkspaceMemberModel>
+): List<WdActivityEntry> {
+    val memberMap = members.associateBy { it.userId }
+    return tasks
+        .sortedByDescending { maxOf(it.createdAt, it.updatedAt) }
+        .take(5)
+        .map { task ->
+            val author = memberMap[task.authorId]?.username ?: "User #${task.authorId}"
+            val verb = when {
+                task.status.uppercase() == "DONE"                  -> "completed"
+                task.updatedAt > task.createdAt                    -> "updated"
+                else                                               -> "created"
+            }
+            val timeEpoch = maxOf(task.createdAt, task.updatedAt)
+            WdActivityEntry("$author $verb '${task.title}'", wdRelativeTime(timeEpoch))
+        }
+}
 
 private fun wdPriorityColor(priority: String) = when (priority.uppercase()) {
     "HIGH"   -> WdRed
@@ -848,10 +879,15 @@ private fun WdSidePanel(
             letterSpacing = 0.8.sp
         )
         Spacer(Modifier.height(12.dp))
-        WD_ACTIVITY.forEach { (action, time) ->
-            Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                Text(action, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WdTextPri, lineHeight = 20.sp)
-                Text(time,   fontSize = 12.sp, color = WdTextMuted)
+        val activity = wdBuildActivity(filteredTasks, members)
+        if (activity.isEmpty()) {
+            Text("No recent activity.", fontSize = 14.sp, color = WdTextMuted)
+        } else {
+            activity.forEach { entry ->
+                Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Text(entry.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WdTextPri, lineHeight = 20.sp)
+                    Text(entry.time, fontSize = 12.sp, color = WdTextMuted)
+                }
             }
         }
     }
