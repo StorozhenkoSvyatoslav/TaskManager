@@ -121,6 +121,7 @@ fun TaskDetailScreen(
     var comments        by remember { mutableStateOf<List<CommentModel>>(emptyList()) }
     var isLoading       by remember { mutableStateOf(true) }
     var isUploading     by remember { mutableStateOf(false) }
+    var uploadError     by remember { mutableStateOf<String?>(null) }
     var detailRefreshKey by remember { mutableStateOf(0) }
     var commentRefreshKey by remember { mutableStateOf(0) }
     var commentText     by remember { mutableStateOf("") }
@@ -166,7 +167,13 @@ fun TaskDetailScreen(
         scope.launch {
             val file = pickFile() ?: return@launch
             isUploading = true
-            repo.uploadAttachment(task.id, file).onSuccess { detailRefreshKey++ }
+            uploadError = null
+            val result = repo.uploadAttachment(task.id, file)
+            if (result.isSuccess) {
+                detailRefreshKey++
+            } else {
+                uploadError = result.exceptionOrNull()?.message ?: "Upload failed"
+            }
             isUploading = false
         }
     }
@@ -188,6 +195,26 @@ fun TaskDetailScreen(
         val isNarrow = maxWidth < 700.dp
         Column(modifier = Modifier.widthIn(max = 1920.dp).fillMaxSize()) {
             TdHeaderBar(task = displayTask, onBack = onBack)
+            if (uploadError != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(TdRed.copy(alpha = 0.12f))
+                        .padding(horizontal = 40.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = uploadError ?: "",
+                        color = TdRed,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { uploadError = null }) {
+                        Text("Dismiss", color = TdRed, fontSize = 12.sp)
+                    }
+                }
+            }
             if (isLoading) {
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),

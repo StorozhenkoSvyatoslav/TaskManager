@@ -14,3 +14,5 @@ actual suspend fun pickFile(): PickedFile? {
         PickedFile(selected.name, selected.readBytes(), null)
     }
 }
+
+actual suspend fun platformUpload(url: String, token: String, file: PickedFile): Result<Unit>? = null

@@ -3,6 +3,7 @@ package ru.storozhenko.taskmanager
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -67,17 +68,25 @@ class TaskRepository(private val token: String) {
         client.get("$API_BASE/tasks/$taskId/attachments/$attachmentId/download") { auth() }.body()
     }
 
-    suspend fun uploadAttachment(taskId: Int, file: PickedFile): Result<Unit> = runCatching {
-        client.post("$API_BASE/tasks/$taskId/attachments") {
-            auth()
-            setBody(MultiPartFormDataContent(formData {
-                append("file", file.bytes, Headers.build {
-                    file.mimeType?.let { append(HttpHeaders.ContentType, it) }
-                    append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
-                })
-            }))
+    suspend fun uploadAttachment(taskId: Int, file: PickedFile): Result<Unit> {
+        val url = "$API_BASE/tasks/$taskId/attachments"
+        // Use native browser upload on WasmJS to avoid binary interop issues
+        platformUpload(url, token, file)?.let { return it }
+        // Ktor-based upload for JVM/Android
+        return runCatching {
+            val response = client.post(url) {
+                auth()
+                setBody(MultiPartFormDataContent(formData {
+                    append("file", file.bytes, Headers.build {
+                        file.mimeType?.let { append(HttpHeaders.ContentType, it) }
+                        append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
+                    })
+                }))
+            }
+            if (!response.status.isSuccess()) {
+                throw Exception("Upload failed: HTTP ${response.status.value} ${response.bodyAsText()}")
+            }
         }
-        Unit
     }
 
     suspend fun deleteTask(taskId: Int): Result<Unit> = runCatching {
