@@ -126,6 +126,8 @@ fun WorkspaceDetailScreen(
     onCreateTask: () -> Unit = {},
     onEditTask: (TaskModel) -> Unit = {}
 ) {
+    // Delete workspace confirmation dialog — declared early so it can reference scope
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val taskRepo      = remember(token) { TaskRepository(token) }
     val workspaceRepo = remember(token) { WorkspaceRepository(token) }
     val scope         = rememberCoroutineScope()
@@ -139,9 +141,9 @@ fun WorkspaceDetailScreen(
     var priorityFilter by remember { mutableStateOf("All") }
     var sortBy         by remember { mutableStateOf("Priority") }
     var currentWorkspace by remember { mutableStateOf(workspace) }
-    var showInviteDialog by remember { mutableStateOf(false) }
-    var showEditDialog   by remember { mutableStateOf(false) }
-    var showHeaderMenu   by remember { mutableStateOf(false) }
+    var showInviteDialog  by remember { mutableStateOf(false) }
+    var showEditDialog    by remember { mutableStateOf(false) }
+    var showHeaderMenu    by remember { mutableStateOf(false) }
 
     val isOwner = currentUserId != 0 && currentUserId == currentWorkspace.ownerId
 
@@ -176,14 +178,16 @@ fun WorkspaceDetailScreen(
             // ── Main content ──────────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 WdHeaderBar(
-                    workspace       = currentWorkspace,
-                    members         = members,
-                    showMenu        = showHeaderMenu,
-                    onMenuToggle    = { showHeaderMenu = !showHeaderMenu },
-                    onMenuDismiss   = { showHeaderMenu = false },
-                    onBack          = onBack,
-                    onInvite        = { showInviteDialog = true },
-                    onEditWorkspace = { if (isOwner) showEditDialog = true }
+                    workspace         = currentWorkspace,
+                    members           = members,
+                    isOwner           = isOwner,
+                    showMenu          = showHeaderMenu,
+                    onMenuToggle      = { showHeaderMenu = !showHeaderMenu },
+                    onMenuDismiss     = { showHeaderMenu = false },
+                    onBack            = onBack,
+                    onInvite          = { showInviteDialog = true },
+                    onEditWorkspace   = { if (isOwner) showEditDialog = true },
+                    onDeleteWorkspace = { if (isOwner) showDeleteDialog = true }
                 )
                 WdToolbar(
                     searchQuery      = searchQuery,
@@ -258,6 +262,20 @@ fun WorkspaceDetailScreen(
             }
         )
     }
+    if (showDeleteDialog && isOwner) {
+        WdDeleteWorkspaceDialog(
+            workspaceName = currentWorkspace.name,
+            onDismiss     = { showDeleteDialog = false },
+            onConfirm     = {
+                scope.launch {
+                    workspaceRepo.deleteWorkspace(currentWorkspace.id).onSuccess {
+                        showDeleteDialog = false
+                        onBack()
+                    }
+                }
+            }
+        )
+    }
 }
 
 // ── Header Bar ────────────────────────────────────────────────────────────────
@@ -265,12 +283,14 @@ fun WorkspaceDetailScreen(
 private fun WdHeaderBar(
     workspace: WorkspaceModel,
     members: List<WorkspaceMemberModel>,
+    isOwner: Boolean = false,
     showMenu: Boolean,
     onMenuToggle: () -> Unit,
     onMenuDismiss: () -> Unit,
     onBack: () -> Unit,
     onInvite: () -> Unit = {},
-    onEditWorkspace: () -> Unit = {}
+    onEditWorkspace: () -> Unit = {},
+    onDeleteWorkspace: () -> Unit = {}
 ) {
     Column {
         Row(
@@ -350,14 +370,22 @@ private fun WdHeaderBar(
                         Text("⋮", fontSize = 18.sp, color = WdTextMuted)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = onMenuDismiss) {
-                        DropdownMenuItem(
-                            text    = { Text("✏  Edit Workspace") },
-                            onClick = { onMenuDismiss(); onEditWorkspace() }
-                        )
+                        if (isOwner) {
+                            DropdownMenuItem(
+                                text    = { Text("✏  Edit Workspace") },
+                                onClick = { onMenuDismiss(); onEditWorkspace() }
+                            )
+                        }
                         DropdownMenuItem(
                             text    = { Text("↗  Share / Invite") },
                             onClick = { onMenuDismiss(); onInvite() }
                         )
+                        if (isOwner) {
+                            DropdownMenuItem(
+                                text    = { Text("🗑  Delete Workspace", color = WdRed) },
+                                onClick = { onMenuDismiss(); onDeleteWorkspace() }
+                            )
+                        }
                     }
                 }
             }
@@ -1030,6 +1058,41 @@ private fun WdInviteCodeDialog(
                 OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
                     Text("Close")
                 }
+            }
+        }
+    )
+}
+
+// ── Delete Workspace Dialog ───────────────────────────────────────────────────
+@Composable
+private fun WdDeleteWorkspaceDialog(
+    workspaceName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Workspace", fontWeight = FontWeight.Bold) },
+        text  = {
+            Text(
+                "Are you sure you want to delete \"$workspaceName\"? " +
+                "All tasks, comments and attachments will be permanently removed.",
+                fontSize   = 14.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors  = ButtonDefaults.buttonColors(containerColor = WdRed),
+                shape   = RoundedCornerShape(8.dp)
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                Text("Cancel")
             }
         }
     )

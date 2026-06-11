@@ -8,7 +8,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.transactions.transaction
+import ru.storozhenko.taskmanager.database.tables.TaskAttachments
+import ru.storozhenko.taskmanager.database.tables.TaskComments
+import ru.storozhenko.taskmanager.database.tables.Tasks
 import ru.storozhenko.taskmanager.database.tables.Users
 import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
 import ru.storozhenko.taskmanager.database.tables.Workspaces
@@ -302,6 +306,56 @@ fun Route.workspaceRouting() {
                 }
             }
             call.respond(HttpStatusCode.OK, "Workspace updated")
+        }
+
+        // Удалить пространство вместе с задачами, комментариями, вложениями и участниками (только OWNER)
+        delete("/{id}") {
+            val workspaceId = call.parameters["id"]?.toIntOrNull()
+            if (workspaceId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid workspace id")
+                return@delete
+            }
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()
+            if (userId == null) {
+                call.respond(HttpStatusCode.Unauthorized, "Invalid user")
+                return@delete
+            }
+            val isOwner = transaction {
+                WorkspaceMembers.selectAll()
+                    .where {
+                        (WorkspaceMembers.workspaceId eq workspaceId) and
+                        (WorkspaceMembers.userId eq userId) and
+                        (WorkspaceMembers.role eq "OWNER")
+                    }.any()
+            }
+            if (!isOwner) {
+                call.respond(HttpStatusCode.Forbidden, "Only workspace owner can delete the workspace")
+                return@delete
+            }
+            // Сначала удаляем физические файлы всех задач
+            val taskIds = transaction {
+                Tasks.select(Tasks.id).where { Tasks.workspaceId eq workspaceId }.map { it[Tasks.id] }
+            }
+            if (taskIds.isNotEmpty()) {
+                val attachmentPaths = transaction {
+                    TaskAttachments.select(TaskAttachments.storedPath)
+                        .where { TaskAttachments.taskId inList taskIds }
+                        .map { it[TaskAttachments.storedPath] }
+                }
+                attachmentPaths.forEach { java.io.File(it).delete() }
+            }
+            // Каскадное удаление в одной транзакции
+            transaction {
+                if (taskIds.isNotEmpty()) {
+                    TaskAttachments.deleteWhere { TaskAttachments.taskId inList taskIds }
+                    TaskComments.deleteWhere   { TaskComments.taskId   inList taskIds }
+                    Tasks.deleteWhere          { Tasks.workspaceId eq workspaceId }
+                }
+                WorkspaceMembers.deleteWhere  { WorkspaceMembers.workspaceId eq workspaceId }
+                Workspaces.deleteWhere        { Workspaces.id eq workspaceId }
+            }
+            call.respond(HttpStatusCode.NoContent)
         }
 
         // Вступить в приватное пространство по inviteCode

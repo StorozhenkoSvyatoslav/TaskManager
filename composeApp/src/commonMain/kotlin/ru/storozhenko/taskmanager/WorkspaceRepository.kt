@@ -62,4 +62,9 @@ class WorkspaceRepository(private val token: String) {
                   else       "$API_BASE/workspaces/$workspaceId/invite"
         client.post(url) { auth() }.body()
     }
+
+    suspend fun deleteWorkspace(workspaceId: Int): Result<Unit> = runCatching {
+        client.delete("$API_BASE/workspaces/$workspaceId") { auth() }
+        Unit
+    }
 }
