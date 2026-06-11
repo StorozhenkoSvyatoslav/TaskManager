@@ -8,6 +8,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.outlined.FolderZip
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -498,7 +509,12 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
                             modifier           = Modifier.fillMaxSize(),
                             contentScale       = ContentScale.Crop
                         )
-                        else -> Text("🖼", fontSize = 36.sp)
+                        else -> Icon(
+                            imageVector        = Icons.Outlined.Image,
+                            contentDescription = null,
+                            modifier           = Modifier.size(40.dp),
+                            tint               = TdTextMuted
+                        )
                     }
                 }
                 // File info below image
@@ -535,7 +551,7 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
                     modifier         = Modifier.size(40.dp).background(TdGray, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(fileTypeEmoji(attachment.fileName), fontSize = 20.sp)
+                    FileTypeIcon(attachment.fileName, Modifier.size(22.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -557,17 +573,19 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
     }
 }
 
-private fun fileTypeEmoji(fileName: String): String {
+@Composable
+private fun FileTypeIcon(fileName: String, modifier: Modifier = Modifier) {
     val ext = fileName.substringAfterLast('.', "").lowercase()
-    return when (ext) {
-        "pdf"               -> "📄"
-        "doc", "docx"       -> "📝"
-        "xls", "xlsx"       -> "📊"
-        "zip", "rar", "7z"  -> "🗜"
-        "mp4", "mov", "avi" -> "🎬"
-        "mp3", "wav", "ogg" -> "🎵"
-        else                -> "📎"
+    val icon: ImageVector = when (ext) {
+        "pdf"               -> Icons.Default.PictureAsPdf
+        "doc", "docx"       -> Icons.Default.Description
+        "xls", "xlsx"       -> Icons.Default.TableChart
+        "zip", "rar", "7z"  -> Icons.Outlined.FolderZip
+        "mp4", "mov", "avi" -> Icons.Default.Movie
+        "mp3", "wav", "ogg" -> Icons.Default.MusicNote
+        else                -> Icons.Default.AttachFile
     }
+    Icon(imageVector = icon, contentDescription = null, modifier = modifier, tint = TdTextMuted)
 }
 
 // ── Comment panel (right) ─────────────────────────────────────────────────────
@@ -686,7 +704,7 @@ private fun TdCommentItem(comment: CommentModel, isDeleting: Boolean, onDelete: 
                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp, color = TdTextMuted)
                 } else {
                     Box(modifier = Modifier.size(22.dp).clickable(onClick = onDelete), contentAlignment = Alignment.Center) {
-                        Text("🗑", fontSize = 12.sp)
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(14.dp), tint = TdTextMuted)
                     }
                 }
             }

@@ -10,6 +10,10 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -673,7 +677,7 @@ private fun TcChecklistSection(
                             modifier         = Modifier.size(28.dp).clickable { onDelete(item.id) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🗑", fontSize = 14.sp)
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(16.dp), tint = TcTextMuted)
                         }
                     }
                 }
@@ -714,7 +718,7 @@ private fun TcAttachmentSection(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("☁", fontSize = 24.sp, color = TcTextMuted)
+                Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(28.dp), tint = TcTextMuted)
                 Text("Click to upload files", fontSize = 14.sp, color = TcTextMuted)
             }
         }
@@ -731,7 +735,7 @@ private fun TcAttachmentSection(
                         verticalAlignment     = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("📎", fontSize = 18.sp)
+                        Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(20.dp), tint = TcTextMuted)
                         Column(modifier = Modifier.weight(1f)) {
                             Text(file.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TcTextPri)
                             Text(
