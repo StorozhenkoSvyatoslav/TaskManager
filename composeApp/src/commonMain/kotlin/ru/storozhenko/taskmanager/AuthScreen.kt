@@ -17,7 +17,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -372,20 +382,34 @@ private fun LoginForm(
     isLoading: Boolean,
     onSignIn: () -> Unit
 ) {
+    val passwordFocus = remember { FocusRequester() }
+
     OutlinedTextField(
         value = email,
         onValueChange = onEmailChange,
         label = { Text("Email Address") },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().onKeyEvent { keyEvent ->
+            if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyUp) {
+                passwordFocus.requestFocus(); true
+            } else false
+        },
         singleLine = true,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
     )
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(
         value = password,
         onValueChange = onPasswordChange,
         label = { Text("Password") },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .focusRequester(passwordFocus)
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyUp) {
+                    onSignIn(); true
+                } else false
+            },
         singleLine = true,
         shape = RoundedCornerShape(8.dp),
         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -393,7 +417,9 @@ private fun LoginForm(
             TextButton(onClick = onTogglePassword) {
                 Text(if (showPassword) "Hide" else "Show", color = BluePrimary)
             }
-        }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onSignIn() })
     )
     Spacer(Modifier.height(24.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -437,20 +463,35 @@ private fun RegisterForm(
     onCreateAccount: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val passwordFocus = remember { FocusRequester() }
+    val confirmFocus  = remember { FocusRequester() }
+
     OutlinedTextField(
         value = email,
         onValueChange = onEmailChange,
         label = { Text("Email Address") },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().onKeyEvent { keyEvent ->
+            if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyUp) {
+                passwordFocus.requestFocus(); true
+            } else false
+        },
         singleLine = true,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
     )
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(
         value = password,
         onValueChange = onPasswordChange,
         label = { Text("Password") },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .focusRequester(passwordFocus)
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyUp) {
+                    confirmFocus.requestFocus(); true
+                } else false
+            },
         singleLine = true,
         shape = RoundedCornerShape(8.dp),
         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -459,14 +500,22 @@ private fun RegisterForm(
                 Text(if (showPassword) "Hide" else "Show", color = BluePrimary)
             }
         },
-        supportingText = { Text("Must be at least 8 characters", color = Color(0xFF666666)) }
+        supportingText = { Text("Must be at least 8 characters", color = Color(0xFF666666)) },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { confirmFocus.requestFocus() })
     )
     Spacer(Modifier.height(16.dp))
     OutlinedTextField(
         value = confirmPassword,
         onValueChange = onConfirmPasswordChange,
         label = { Text("Confirm Password") },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .focusRequester(confirmFocus)
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyUp) {
+                    onCreateAccount(); true
+                } else false
+            },
         singleLine = true,
         shape = RoundedCornerShape(8.dp),
         visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -474,7 +523,9 @@ private fun RegisterForm(
             TextButton(onClick = onToggleConfirmPassword) {
                 Text(if (showConfirmPassword) "Hide" else "Show", color = BluePrimary)
             }
-        }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onCreateAccount() })
     )
     Spacer(Modifier.height(24.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
