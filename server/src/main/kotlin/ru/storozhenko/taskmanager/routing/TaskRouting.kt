@@ -13,10 +13,12 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.transactions.transaction
 import ru.storozhenko.taskmanager.database.tables.TaskAttachments
+import ru.storozhenko.taskmanager.database.tables.TaskChecklists
 import ru.storozhenko.taskmanager.database.tables.TaskComments
 import ru.storozhenko.taskmanager.database.tables.Tasks
 import ru.storozhenko.taskmanager.database.tables.WorkspaceMembers
 import ru.storozhenko.taskmanager.models.AttachmentModel
+import ru.storozhenko.taskmanager.models.ChecklistItemModel
 import ru.storozhenko.taskmanager.models.CreateTaskRequest
 import ru.storozhenko.taskmanager.models.TaskDetailModel
 import ru.storozhenko.taskmanager.models.TaskModel
@@ -88,6 +90,13 @@ fun Route.taskRouting() {
                     .map { it.toAttachmentModel() }
             }
 
+            val checklist = transaction {
+                TaskChecklists.selectAll()
+                    .where { TaskChecklists.taskId eq taskId }
+                    .orderBy(TaskChecklists.createdAt, SortOrder.ASC)
+                    .map { it.toChecklistItemModel() }
+            }
+
             call.respond(
                 HttpStatusCode.OK,
                 TaskDetailModel(
@@ -101,6 +110,7 @@ fun Route.taskRouting() {
                     createdAt = taskRow[Tasks.createdAt].toEpochSecond(ZoneOffset.UTC),
                     updatedAt = taskRow[Tasks.updatedAt].toEpochSecond(ZoneOffset.UTC),
                     attachments = attachments,
+                    checklist = checklist,
                 )
             )
         }
@@ -147,6 +157,15 @@ fun Route.taskRouting() {
             }
 
             pendingFiles.saveAll(taskId = newTaskId, uploadedBy = userId)
+            request.checklist.filter { it.isNotBlank() }.forEach { itemText ->
+                transaction {
+                    TaskChecklists.insert {
+                        it[taskId] = newTaskId
+                        it[text] = itemText.trim()
+                        it[isCompleted] = false
+                    }
+                }
+            }
 
             call.respond(HttpStatusCode.Created, "Task created with ID: $newTaskId")
         }
@@ -272,6 +291,7 @@ fun Route.taskRouting() {
             transaction {
                 TaskAttachments.deleteWhere { TaskAttachments.taskId eq taskId }
                 TaskComments.deleteWhere { TaskComments.taskId eq taskId }
+                TaskChecklists.deleteWhere { TaskChecklists.taskId eq taskId }
                 Tasks.deleteWhere { Tasks.id eq taskId }
             }
 

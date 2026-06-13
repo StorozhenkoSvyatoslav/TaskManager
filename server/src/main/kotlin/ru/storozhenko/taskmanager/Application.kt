@@ -20,6 +20,7 @@ import ru.storozhenko.taskmanager.database.DatabaseFactory
 import ru.storozhenko.taskmanager.routing.adminRouting
 import ru.storozhenko.taskmanager.routing.attachmentRouting
 import ru.storozhenko.taskmanager.routing.authRouting
+import ru.storozhenko.taskmanager.routing.checklistRouting
 import ru.storozhenko.taskmanager.routing.commentRouting
 import ru.storozhenko.taskmanager.routing.statsRouting
 import ru.storozhenko.taskmanager.routing.taskRouting
@@ -101,6 +102,7 @@ fun Application.module() {
             taskRouting()
             workspaceRouting()
             commentRouting()
+            checklistRouting()
             attachmentRouting()
             statsRouting()
             userRouting()

@@ -147,6 +147,7 @@ fun TaskCreateEditScreen(
                 status      = status,
                 priority    = priority,
                 workspaceId = workspace.id,
+                checklist   = if (existingTask == null) checklistItems.map { it.text } else emptyList(),
             )
             val result = if (existingTask != null) {
                 repo.updateTask(existingTask.id, req, attachments)

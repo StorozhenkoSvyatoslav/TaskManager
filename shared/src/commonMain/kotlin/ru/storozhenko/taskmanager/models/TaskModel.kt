@@ -22,6 +22,7 @@ data class CreateTaskRequest(
     val status: String = "TODO",
     val priority: String = "MEDIUM",
     val workspaceId: Int,
+    val checklist: List<String> = emptyList(),
 )
 
 @Serializable
@@ -36,5 +37,6 @@ data class TaskDetailModel(
     val createdAt: Long,
     val updatedAt: Long,
     val attachments: List<AttachmentModel>,
+    val checklist: List<ChecklistItemModel>,
 )
 

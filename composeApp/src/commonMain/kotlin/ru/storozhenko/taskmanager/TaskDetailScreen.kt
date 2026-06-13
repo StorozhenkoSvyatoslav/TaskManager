@@ -2,6 +2,7 @@ package ru.storozhenko.taskmanager
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +32,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -239,13 +241,14 @@ fun TaskDetailScreen(
             } else if (isNarrow) {
                 // Mobile: stack vertically — main content on top, comments fixed at bottom
                 TdMainPanel(
-                    task          = displayTask,
-                    detail        = detail,
-                    workspace     = workspace,
-                    repo          = repo,
-                    isUploading   = isUploading,
-                    onUploadClick = onUploadAttachment,
-                    modifier      = Modifier.weight(1f).fillMaxWidth()
+                    task                = displayTask,
+                    detail              = detail,
+                    workspace           = workspace,
+                    repo                = repo,
+                    isUploading         = isUploading,
+                    onUploadClick       = onUploadAttachment,
+                    onChecklistChanged  = { detailRefreshKey++ },
+                    modifier            = Modifier.weight(1f).fillMaxWidth()
                 )
                 HorizontalDivider(color = TdBorder)
                 TdCommentPanel(
@@ -261,13 +264,14 @@ fun TaskDetailScreen(
             } else {
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     TdMainPanel(
-                        task            = displayTask,
-                        detail          = detail,
-                        workspace       = workspace,
-                        repo            = repo,
-                        isUploading     = isUploading,
-                        onUploadClick   = onUploadAttachment,
-                        modifier        = Modifier.weight(1f).fillMaxHeight()
+                        task               = displayTask,
+                        detail             = detail,
+                        workspace          = workspace,
+                        repo               = repo,
+                        isUploading        = isUploading,
+                        onUploadClick      = onUploadAttachment,
+                        onChecklistChanged = { detailRefreshKey++ },
+                        modifier           = Modifier.weight(1f).fillMaxHeight()
                     )
                     Box(Modifier.width(1.dp).fillMaxHeight().background(TdBorder))
                     TdCommentPanel(
@@ -374,8 +378,20 @@ private fun TdMainPanel(
     repo: TaskRepository,
     isUploading: Boolean,
     onUploadClick: () -> Unit,
+    onChecklistChanged: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scope = rememberCoroutineScope()
+
+    // Mirrors detail.checklist; updated optimistically on toggle/add/delete
+    var checklistState by remember(detail?.checklist) {
+        mutableStateOf(detail?.checklist ?: emptyList())
+    }
+    var newItemText       by remember { mutableStateOf("") }
+    var isAddingItem      by remember { mutableStateOf(false) }
+    var togglingIds       by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var deletingIds       by remember { mutableStateOf<Set<Int>>(emptySet()) }
+
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -401,6 +417,169 @@ private fun TdMainPanel(
         TdMetaRow("Workspace", workspace.name)
         TdMetaRow("Created",   formatEpoch(task.createdAt))
         TdMetaRow("Updated",   formatEpoch(task.updatedAt))
+
+        Spacer(Modifier.height(28.dp))
+        HorizontalDivider(color = TdBorder)
+        Spacer(Modifier.height(20.dp))
+
+        // ── Checklist ─────────────────────────────────────────────────────────
+        val doneCount  = checklistState.count { it.isCompleted }
+        val totalCount = checklistState.size
+        Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TdSectionLabel("CHECKLIST ($doneCount/$totalCount)")
+        }
+        Spacer(Modifier.height(8.dp))
+
+        if (totalCount > 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(TdBorder, RoundedCornerShape(2.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(fraction = doneCount.toFloat() / totalCount)
+                        .background(TdGreen, RoundedCornerShape(2.dp))
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        if (checklistState.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, TdBorder, RoundedCornerShape(8.dp))
+            ) {
+                checklistState.forEachIndexed { idx, item ->
+                    if (idx > 0) HorizontalDivider(color = TdBorder)
+                    Row(
+                        modifier          = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (item.id in togglingIds) {
+                            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 1.5.dp, color = TdTextMuted)
+                            }
+                        } else {
+                            Checkbox(
+                                checked         = item.isCompleted,
+                                onCheckedChange = { checked ->
+                                    if (item.id !in togglingIds) {
+                                        // Optimistic update
+                                        checklistState = checklistState.map { ci ->
+                                            if (ci.id == item.id) ci.copy(isCompleted = checked) else ci
+                                        }
+                                        scope.launch {
+                                            togglingIds = togglingIds + item.id
+                                            repo.toggleChecklistItem(task.id, item.id, checked)
+                                                .onSuccess { onChecklistChanged() }
+                                                .onFailure {
+                                                    // Revert
+                                                    checklistState = checklistState.map { ci ->
+                                                        if (ci.id == item.id) ci.copy(isCompleted = !checked) else ci
+                                                    }
+                                                }
+                                            togglingIds = togglingIds - item.id
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        Text(
+                            text           = item.text,
+                            modifier       = Modifier.weight(1f),
+                            fontSize       = 14.sp,
+                            color          = if (item.isCompleted) TdTextMuted else TdTextPri,
+                            textDecoration = if (item.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                        )
+                        if (item.id in deletingIds) {
+                            Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp, color = TdTextMuted)
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clickable {
+                                        if (item.id !in deletingIds) {
+                                            scope.launch {
+                                                deletingIds = deletingIds + item.id
+                                                repo.deleteChecklistItem(task.id, item.id)
+                                                    .onSuccess {
+                                                        checklistState = checklistState.filter { it.id != item.id }
+                                                        onChecklistChanged()
+                                                    }
+                                                deletingIds = deletingIds - item.id
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete item",
+                                    modifier           = Modifier.size(14.dp),
+                                    tint               = TdTextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // Add new checklist item
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value         = newItemText,
+                onValueChange = { newItemText = it },
+                modifier      = Modifier.weight(1f),
+                placeholder   = { Text("Add checklist item...", fontSize = 13.sp) },
+                singleLine    = true,
+                shape         = RoundedCornerShape(8.dp),
+                enabled       = !isAddingItem
+            )
+            val canAdd = newItemText.isNotBlank() && !isAddingItem
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        if (canAdd) TdBlue else TdGray,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable(enabled = canAdd) {
+                        val text = newItemText.trim()
+                        scope.launch {
+                            isAddingItem = true
+                            repo.addChecklistItem(task.id, text)
+                                .onSuccess { newItem ->
+                                    newItemText = ""
+                                    checklistState = checklistState + newItem
+                                    onChecklistChanged()
+                                }
+                            isAddingItem = false
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (isAddingItem) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Text("+", color = if (canAdd) Color.White else TdTextMuted, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
         HorizontalDivider(color = TdBorder)

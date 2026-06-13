@@ -7,11 +7,14 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import ru.storozhenko.taskmanager.models.ChecklistItemModel
 import ru.storozhenko.taskmanager.models.CommentModel
+import ru.storozhenko.taskmanager.models.CreateChecklistItemRequest
 import ru.storozhenko.taskmanager.models.CreateCommentRequest
 import ru.storozhenko.taskmanager.models.CreateTaskRequest
 import ru.storozhenko.taskmanager.models.TaskDetailModel
 import ru.storozhenko.taskmanager.models.TaskModel
+import ru.storozhenko.taskmanager.models.UpdateChecklistItemRequest
 import ru.storozhenko.taskmanager.models.WorkspaceStats
 
 class TaskRepository(private val token: String) {
@@ -91,6 +94,28 @@ class TaskRepository(private val token: String) {
 
     suspend fun deleteTask(taskId: Int): Result<Unit> = runCatching {
         client.delete("$API_BASE/tasks/$taskId") { auth() }
+        Unit
+    }
+
+    suspend fun addChecklistItem(taskId: Int, text: String): Result<ChecklistItemModel> = runCatching {
+        client.post("$API_BASE/tasks/$taskId/checklist") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(CreateChecklistItemRequest(text))
+        }.body()
+    }
+
+    suspend fun toggleChecklistItem(taskId: Int, itemId: Int, isCompleted: Boolean): Result<Unit> = runCatching {
+        client.put("$API_BASE/tasks/$taskId/checklist/$itemId") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(UpdateChecklistItemRequest(isCompleted))
+        }
+        Unit
+    }
+
+    suspend fun deleteChecklistItem(taskId: Int, itemId: Int): Result<Unit> = runCatching {
+        client.delete("$API_BASE/tasks/$taskId/checklist/$itemId") { auth() }
         Unit
     }
 
