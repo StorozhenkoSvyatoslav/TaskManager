@@ -12,6 +12,9 @@ ENV ANDROID_HOME=/tmp/android-sdk
 RUN mkdir -p /tmp/android-sdk && \
     echo "sdk.dir=/tmp/android-sdk" >> local.properties
 
+# Node.js 25 (downloaded by Kotlin WasmJS toolchain) requires libatomic
+RUN apt-get update && apt-get install -y libatomic1 && rm -rf /var/lib/apt/lists/*
+
 RUN chmod +x gradlew && \
     ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon
 
