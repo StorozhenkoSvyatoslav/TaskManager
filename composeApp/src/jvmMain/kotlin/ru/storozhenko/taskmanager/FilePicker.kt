@@ -16,3 +16,14 @@ actual suspend fun pickFile(): PickedFile? {
 }
 
 actual suspend fun platformUpload(url: String, token: String, file: PickedFile): Result<Unit>? = null
+
+actual suspend fun saveFile(fileName: String, bytes: ByteArray) {
+    val file = withContext(Dispatchers.Swing) {
+        val chooser = JFileChooser()
+        chooser.selectedFile = java.io.File(fileName)
+        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+    } ?: return
+    withContext(Dispatchers.IO) {
+        file.writeBytes(bytes)
+    }
+}

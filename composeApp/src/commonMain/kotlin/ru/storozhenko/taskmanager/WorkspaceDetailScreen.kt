@@ -10,6 +10,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -308,7 +319,7 @@ private fun WdHeaderBar(
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center
             ) {
-                Text("←", fontSize = 16.sp, color = WdTextMuted)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(18.dp), tint = WdTextMuted)
             }
             Spacer(Modifier.width(12.dp))
             // Blue check-circle workspace indicator
@@ -316,7 +327,7 @@ private fun WdHeaderBar(
                 modifier = Modifier.size(36.dp).background(WdBlue, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✓", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(12.dp))
             // Title + chip + description
@@ -367,22 +378,25 @@ private fun WdHeaderBar(
                             .clickable(onClick = onMenuToggle),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("⋮", fontSize = 18.sp, color = WdTextMuted)
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu", modifier = Modifier.size(20.dp), tint = WdTextMuted)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = onMenuDismiss) {
                         if (isOwner) {
                             DropdownMenuItem(
-                                text    = { Text("✏  Edit Workspace") },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                text    = { Text("Edit Workspace") },
                                 onClick = { onMenuDismiss(); onEditWorkspace() }
                             )
                         }
                         DropdownMenuItem(
-                            text    = { Text("↗  Share / Invite") },
+                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            text    = { Text("Share / Invite") },
                             onClick = { onMenuDismiss(); onInvite() }
                         )
                         if (isOwner) {
                             DropdownMenuItem(
-                                text    = { Text("🗑  Delete Workspace", color = WdRed) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = WdRed) },
+                                text    = { Text("Delete Workspace", color = WdRed) },
                                 onClick = { onMenuDismiss(); onDeleteWorkspace() }
                             )
                         }
@@ -403,7 +417,13 @@ private fun WdVisibilityChip(visibility: String) {
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(if (isPublic) "🌐 " else "🔒 ", fontSize = 11.sp)
+        Icon(
+            if (isPublic) Icons.Default.Public else Icons.Default.Lock,
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = if (isPublic) WdSkyFg else Color(0xFF475569)
+        )
+        Spacer(Modifier.width(3.dp))
         Text(
             if (isPublic) "Public" else "Private",
             color = if (isPublic) WdSkyFg else Color(0xFF475569),
@@ -469,7 +489,7 @@ private fun WdToolbar(
                 placeholder = { Text("Search tasks...") },
                 singleLine = true,
                 shape = RoundedCornerShape(8.dp),
-                leadingIcon = { Text("🔍", fontSize = 16.sp) }
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WdTextMuted) }
             )
 
             Box {
@@ -672,7 +692,7 @@ private fun WdTaskCard(
                             .clickable { showMenu = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("⋮", fontSize = 14.sp, color = WdTextMuted)
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu", modifier = Modifier.size(16.dp), tint = WdTextMuted)
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
@@ -793,7 +813,12 @@ private fun WdSidePanel(
             verticalAlignment     = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("🌐", fontSize = 16.sp)
+            Icon(
+                if (workspace.visibility == "PUBLIC") Icons.Default.Public else Icons.Default.Lock,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp).padding(top = 2.dp),
+                tint = WdTextMuted
+            )
             Text(
                 if (workspace.visibility == "PUBLIC")
                     "Public - Anyone can view this workspace."
@@ -851,7 +876,7 @@ private fun WdSidePanel(
                                 .clickable { onRemoveMember(m.userId) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("✕", fontSize = 12.sp, color = WdRed, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp), tint = WdRed)
                         }
                     }
                 }

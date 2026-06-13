@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -313,7 +317,7 @@ private fun WlHeaderBar(
                     .background(WlBlue, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✓", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(10.dp))
             Text(
@@ -420,7 +424,9 @@ private fun WsCard(workspace: WorkspaceModel, onClick: () -> Unit) {
                     shape = RoundedCornerShape(6.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text("Open workspace →", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Open workspace", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -440,7 +446,8 @@ private fun WsVisibilityChip(visibility: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (!isPublic) {
-            Text("🔒", fontSize = 10.sp, modifier = Modifier.padding(end = 3.dp))
+            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(11.dp), tint = fg)
+            Spacer(Modifier.width(3.dp))
         }
         Text(
             if (isPublic) "Public" else "Private",

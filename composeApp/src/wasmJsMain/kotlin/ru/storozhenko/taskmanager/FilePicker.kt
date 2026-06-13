@@ -108,6 +108,31 @@ private external fun nativeUploadFile(
     onError: (JsString) -> Unit
 )
 
+// ── Native browser file save (download) ───────────────────────────────────────
+@JsFun("""(fileName, base64) => {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], {type: 'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+}""")
+private external fun nativeSaveFile(fileName: JsString, base64: JsString)
+
+@OptIn(ExperimentalEncodingApi::class)
+actual suspend fun saveFile(fileName: String, bytes: ByteArray) {
+    nativeSaveFile(fileName.toJsString(), Base64.encode(bytes).toJsString())
+}
+
 private var _uploadSuccessCallback: (() -> Unit)? = null
 private var _uploadErrorCallback: ((JsString) -> Unit)? = null
 

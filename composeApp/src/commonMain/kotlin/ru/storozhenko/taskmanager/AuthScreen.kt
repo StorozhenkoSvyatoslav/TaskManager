@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -108,7 +110,7 @@ fun AuthScreen(onAuthenticated: (String) -> Unit) {
                                 .background(BluePrimary),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("✓", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                         }
                         Spacer(Modifier.width(10.dp))
                         Text(
@@ -312,7 +314,7 @@ private fun BrandingPanel(modifier: Modifier = Modifier) {
                         .background(Color.White.copy(alpha = 0.9f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("✓", color = BluePrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Check, contentDescription = null, tint = BluePrimary, modifier = Modifier.size(30.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
@@ -352,7 +354,7 @@ private fun FeatureItem(text: String) {
                 .background(Color.White.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center
         ) {
-            Text("✓", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(16.dp))
         Text(text, color = Color.White, style = MaterialTheme.typography.bodyLarge)

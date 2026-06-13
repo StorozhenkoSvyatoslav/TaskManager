@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -506,7 +508,11 @@ private fun ApHeaderBar(onBack: () -> Unit) {
                 onClick = onBack, modifier = Modifier,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ApTextMuted),
                 shape = RoundedCornerShape(8.dp)
-            ) { Text("← Back", fontSize = 13.sp) }
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Back", fontSize = 13.sp)
+            }
             Spacer(Modifier.width(16.dp))
             Box(
                 modifier = Modifier.size(36.dp).background(ApPurple, CircleShape),

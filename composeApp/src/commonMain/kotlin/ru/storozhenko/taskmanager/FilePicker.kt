@@ -5,3 +5,5 @@ data class PickedFile(val name: String, val bytes: ByteArray, val mimeType: Stri
 expect suspend fun pickFile(): PickedFile?
 
 expect suspend fun platformUpload(url: String, token: String, file: PickedFile): Result<Unit>?
+
+expect suspend fun saveFile(fileName: String, bytes: ByteArray)

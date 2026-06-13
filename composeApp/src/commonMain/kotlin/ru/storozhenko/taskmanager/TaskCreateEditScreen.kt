@@ -11,8 +11,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -234,7 +240,7 @@ fun TaskCreateEditScreen(
                                         placeholder   = { Text("MM/DD/YYYY") },
                                         singleLine    = true,
                                         shape         = RoundedCornerShape(8.dp),
-                                        leadingIcon   = { Text("📅", fontSize = 16.sp) }
+                                        leadingIcon   = { Icon(Icons.Default.DateRange, contentDescription = null, tint = TcTextMuted) }
                                     )
                                 }
                             }
@@ -333,7 +339,8 @@ fun TaskCreateEditScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                             } else {
-                                Text("✓ ", fontSize = 15.sp)
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
                             }
                             Text(
                                 if (isEditMode) "Update Task" else "Save Task",
@@ -365,7 +372,7 @@ private fun TcTopBar(onBack: () -> Unit, isEditMode: Boolean = false) {
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center
             ) {
-                Text("←", fontSize = 16.sp, color = TcTextMuted)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(18.dp), tint = TcTextMuted)
             }
             Spacer(Modifier.width(12.dp))
             Text(
@@ -390,7 +397,7 @@ private fun TcPageHeader(isEditMode: Boolean = false) {
             modifier         = Modifier.size(48.dp).background(TcBlue, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text("✎", color = Color.White, fontSize = 22.sp)
+            Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -463,7 +470,7 @@ private fun TcDropdown(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(value, modifier = Modifier.weight(1f), fontSize = 15.sp, color = TcTextPri)
-                Text("▼", fontSize = 11.sp, color = TcTextMuted)
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp), tint = TcTextMuted)
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -570,7 +577,7 @@ private fun TcAssigneeDropdown(
                         color    = TcTextMuted
                     )
                 }
-                Text("▼", fontSize = 11.sp, color = TcTextMuted)
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp), tint = TcTextMuted)
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -749,7 +756,7 @@ private fun TcAttachmentSection(
                             modifier         = Modifier.size(28.dp).clickable { onRemove(idx) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("✕", fontSize = 14.sp, color = TcTextMuted)
+                            Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp), tint = TcTextMuted)
                         }
                     }
                 }

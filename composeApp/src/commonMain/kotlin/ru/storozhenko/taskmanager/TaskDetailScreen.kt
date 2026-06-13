@@ -9,11 +9,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.outlined.FolderZip
@@ -301,7 +304,7 @@ private fun TdHeaderBar(task: TaskModel, onBack: () -> Unit) {
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center
             ) {
-                Text("←", fontSize = 16.sp, color = TdTextMuted)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(18.dp), tint = TdTextMuted)
             }
             Spacer(Modifier.width(12.dp))
             Box(
@@ -467,21 +470,35 @@ private fun TdMetaRow(label: String, value: String) {
     }
 }
 
-// ── Attachment item (with image preview) ─────────────────────────────────────
+// ── Attachment item (with image preview + download) ───────────────────────────
 @Composable
 private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) {
     val isImage = isImageMime(attachment.mimeType) || isImageByName(attachment.fileName)
-    var imageBitmap  by remember(attachment.id) { mutableStateOf<ImageBitmap?>(null) }
-    var imageLoading by remember(attachment.id) { mutableStateOf(false) }
+    var imageBitmap   by remember(attachment.id) { mutableStateOf<ImageBitmap?>(null) }
+    var imageBytes    by remember(attachment.id) { mutableStateOf<ByteArray?>(null) }
+    var imageLoading  by remember(attachment.id) { mutableStateOf(false) }
+    var isDownloading by remember(attachment.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    // Download and decode image bytes once per attachment
     LaunchedEffect(attachment.id) {
         if (!isImage) return@LaunchedEffect
         imageLoading = true
         repo.downloadAttachment(attachment.taskId, attachment.id)
-            .getOrNull()
-            ?.let { bytes -> imageBitmap = bytes.decodeImageOrNull() }
+            .getOrNull()?.let { bytes ->
+                imageBytes  = bytes
+                imageBitmap = bytes.decodeImageOrNull()
+            }
         imageLoading = false
+    }
+
+    val onDownload: () -> Unit = {
+        scope.launch {
+            isDownloading = true
+            val bytes = imageBytes
+                ?: repo.downloadAttachment(attachment.taskId, attachment.id).getOrNull()
+            bytes?.let { saveFile(attachment.fileName, it) }
+            isDownloading = false
+        }
     }
 
     Card(
@@ -492,7 +509,6 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
     ) {
         if (isImage) {
             Column {
-                // Image preview area
                 Box(
                     modifier         = Modifier.fillMaxWidth().height(200.dp).background(TdGray),
                     contentAlignment = Alignment.Center
@@ -517,7 +533,6 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
                         )
                     }
                 }
-                // File info below image
                 Row(
                     modifier              = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
                     verticalAlignment     = Alignment.CenterVertically,
@@ -538,10 +553,10 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
                             color    = TdTextMuted
                         )
                     }
+                    TdDownloadButton(isDownloading = isDownloading, onClick = onDownload)
                 }
             }
         } else {
-            // Non-image file: compact row
             Row(
                 modifier              = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment     = Alignment.CenterVertically,
@@ -568,7 +583,34 @@ private fun TdAttachmentItem(attachment: AttachmentModel, repo: TaskRepository) 
                         color    = TdTextMuted
                     )
                 }
+                TdDownloadButton(isDownloading = isDownloading, onClick = onDownload)
             }
+        }
+    }
+}
+
+@Composable
+private fun TdDownloadButton(isDownloading: Boolean, onClick: () -> Unit) {
+    if (isDownloading) {
+        CircularProgressIndicator(
+            modifier    = Modifier.size(20.dp),
+            color       = TdBlue,
+            strokeWidth = 2.dp
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .background(TdGray, RoundedCornerShape(6.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector        = Icons.Default.Download,
+                contentDescription = "Download",
+                modifier           = Modifier.size(16.dp),
+                tint               = TdTextMuted
+            )
         }
     }
 }
@@ -671,7 +713,7 @@ private fun TdCommentPanel(
                         .clickable(enabled = canSend, onClick = onSend),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("→", fontSize = 18.sp, color = if (canSend) Color.White else TdTextMuted, fontWeight = FontWeight.Bold)
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", modifier = Modifier.size(20.dp), tint = if (canSend) Color.White else TdTextMuted)
                 }
             }
         }
