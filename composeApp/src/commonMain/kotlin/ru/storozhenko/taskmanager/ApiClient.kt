@@ -5,7 +5,7 @@ import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 
-const val API_BASE = "http://localhost:8081"
+val API_BASE: String by lazy { getApiBaseUrl() }
 
 object ApiClient {
     var onUnauthorized: (() -> Unit)? = null

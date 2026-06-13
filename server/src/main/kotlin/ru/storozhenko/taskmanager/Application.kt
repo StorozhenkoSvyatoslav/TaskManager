@@ -27,11 +27,10 @@ import ru.storozhenko.taskmanager.routing.taskRouting
 import ru.storozhenko.taskmanager.routing.userRouting
 import ru.storozhenko.taskmanager.routing.workspaceRouting
 
-//надо будет вынести в файлы конфигурации
-const val SERVER_PORT = 8081
-const val JWT_SECRET = "my-secret-key-for-task-manager"
-const val JWT_ISSUER = "http://localhost:8081"
-const val JWT_AUDIENCE = "task-manager-client"
+val SERVER_PORT: Int = System.getenv("PORT")?.toInt() ?: 8081
+val JWT_SECRET: String = System.getenv("JWT_SECRET") ?: "my-secret-key-for-task-manager"
+val JWT_ISSUER: String = System.getenv("JWT_ISSUER") ?: "http://localhost:8081"
+val JWT_AUDIENCE: String = System.getenv("JWT_AUDIENCE") ?: "task-manager-client"
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -44,12 +43,7 @@ fun Application.module() {
     DatabaseFactory.init()
 
     install(CORS) {
-        allowHost("localhost:8080")
-        allowHost("localhost:5173")
-        allowHost("localhost:3000")
-        allowHost("127.0.0.1:8080")
-        allowHost("127.0.0.1:5173")
-        allowHost("127.0.0.1:3000")
+        anyHost()
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.Accept)
@@ -60,7 +54,6 @@ fun Application.module() {
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Delete)
         allowMethod(HttpMethod.Patch)
-        allowCredentials = true
         maxAgeInSeconds = 3600
     }
 
